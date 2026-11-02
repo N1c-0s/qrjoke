@@ -90,6 +90,23 @@
   </section>
 
   <section>
+    <h2>Erreur système (faux plantage)</h2>
+    <div class="row">
+      <select id="osSel" aria-label="Système">
+        <option value="auto">Auto : détecter chaque écran</option>
+        <option value="windows">Windows (écran bleu)</option>
+        <option value="mac">Mac (redémarrage)</option>
+        <option value="android">Android (appli bloquée)</option>
+        <option value="iphone">iPhone (alerte)</option>
+      </select>
+      <label class="dim">Révélation après (s) <input id="osSec" type="number" min="3" max="120" value="12" style="width:70px"></label>
+      <input id="osFinal" maxlength="120" placeholder="Message de fin : Blague ! 😄" aria-label="Message de fin" style="flex:1;min-width:200px">
+      <button id="osGo" class="primary" type="button">Lancer</button>
+    </div>
+    <p class="dim" style="margin:8px 0 0">Auto : chaque écran affiche l'erreur de son propre système (PC Windows → écran bleu, Mac, Android, iPhone). Choisis un système pour forcer le même écran partout.</p>
+  </section>
+
+  <section>
     <h2>Texte libre</h2>
     <form id="free">
       <textarea id="ftext" placeholder="Écris ton message…"></textarea>
@@ -318,6 +335,18 @@
   });
   $('ftext').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('free').requestSubmit();
+  });
+
+  /* ----- Erreur système : Auto (détection) ou choix manuel ----- */
+  $('osGo').addEventListener('click', () => {
+    const seconds = Math.min(120, Math.max(3, Number($('osSec').value) || 12));
+    send({
+      type: 'oserror',
+      os: $('osSel').value,
+      seconds,
+      final: $('osFinal').value.trim() || undefined,
+      duration: seconds + 20, // retour automatique à l'écran d'attente après la révélation
+    }, 'Erreur système');
   });
 
   $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));

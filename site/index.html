@@ -53,6 +53,9 @@
   }
 
   .shake { animation: shake .45s linear infinite; }
+  @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
   @keyframes shake {
     0%, 100% { transform: translate(0, 0) rotate(0); }
     20% { transform: translate(-14px, 8px) rotate(-.6deg); }
@@ -76,6 +79,7 @@
 
 <script src="/vendor/mqtt.min.js"></script>
 <script src="/core.js"></script>
+<script src="/screens.js"></script>
 <script>
 (() => {
   'use strict';
@@ -90,6 +94,7 @@
     (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
   const kind = isMobile ? 'mobile' : 'pc';
   const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  const detectedOS = Core.detectOS({ ua, maxTouchPoints: navigator.maxTouchPoints });
   const label = (isMobile ? 'Smartphone' : 'PC') + (browser ? ' · ' + browser : '');
   const params = new URLSearchParams(location.search);
   const waitTheme = params.get('wait') === 'white' ? 'white' : 'black';
@@ -280,13 +285,16 @@
     if (text) stage.append(big(text, j.size));
   }
 
-  function reset() {
-    clearTimeout(clearTimer);
+  function clearStage() {
     cancelFns.forEach((f) => { try { f(); } catch (e) { /* rien */ } });
     cancelFns = [];
     stage.className = '';
-    stage.style.transform = '';
+    stage.removeAttribute('style'); // les écrans d'erreur posent beaucoup de styles en ligne
     stage.replaceChildren();
+  }
+  function reset() {
+    clearTimeout(clearTimer);
+    clearStage();
   }
 
   function showWaiting() {
@@ -326,7 +334,7 @@
     cancelFns.push(() => { cancelAnimationFrame(raf); cv.remove(); });
   }
 
-  const DEFER_FX = new Set(['countdown', 'loading', 'runaway']); // le son part au moment de la révélation
+  const DEFER_FX = new Set(['countdown', 'loading', 'runaway', 'oserror']); // le son part au moment de la révélation
 
   const HANDLERS = {
     text: (j) => body(j, j.text),
@@ -427,6 +435,26 @@
     confetti: (j) => {
       body(j, j.text || '🎉');
       confetti((j.seconds || 5) * 1000);
+    },
+
+    oserror: (j) => {
+      const os = Core.resolveOS(j.os, detectedOS);
+      window.QrJokeScreens.render(os, {
+        stage,
+        seconds: j.seconds || 12,
+        cancel: (f) => cancelFns.push(f),
+        done: () => {
+          clearStage(); // on garde le minuteur de retour automatique (duration)
+          stage.style.background = '#111';
+          stage.style.color = '#fff';
+          stage.style.cursor = 'none';
+          fx(j);
+          const d = big(j.final || 'Blague ! 😄', j.size || 9);
+          d.style.animation = 'fadein .6s ease-out';
+          stage.append(d);
+          if (j.confetti) confetti(3000);
+        },
+      });
     },
 
     blackout: (j) => {

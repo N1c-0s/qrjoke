@@ -55,8 +55,9 @@
 
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
-    'shake', 'flip', 'confetti', 'blackout', 'clear',
+    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'clear',
   ]);
+  const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing']);
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
   const num = (v, min, max) => {
@@ -81,6 +82,7 @@
       from: num(j.from, 1, 30),
       speed: num(j.speed, 10, 500),
       duration: num(j.duration, 0, 3600),
+      os: OS_CHOICES.has(j.os) ? j.os : undefined,
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
       vibrate: j.vibrate === true ? true : undefined,
       confetti: j.confetti === true ? true : undefined,
@@ -88,6 +90,25 @@
         ? j.steps.slice(0, 12).map((s) => str(s, 120)).filter(Boolean)
         : undefined,
     };
+  }
+
+  /* ---------- Détection du système de l'écran ---------- */
+
+  /** env = { ua, maxTouchPoints } -> 'windows' | 'mac' | 'android' | 'iphone' | 'other' */
+  function detectOS(env) {
+    const ua = String((env && env.ua) || '');
+    const touch = Number(env && env.maxTouchPoints) || 0;
+    if (/iPhone|iPad|iPod/i.test(ua)) return 'iphone';
+    if (/Android/i.test(ua)) return 'android';
+    if (/Macintosh|Mac OS X/i.test(ua)) return touch > 1 ? 'iphone' : 'mac'; // un iPad se présente comme un Mac tactile
+    if (/Windows/i.test(ua)) return 'windows';
+    return 'other';
+  }
+
+  /** choice : 'auto' ou un système forcé par la régie ; detected : résultat de detectOS. */
+  function resolveOS(choice, detected) {
+    if (choice === 'windows' || choice === 'mac' || choice === 'android' || choice === 'iphone') return choice;
+    return detected === 'other' ? 'windows' : detected; // Linux, ChromeOS... : écran bleu par défaut
   }
 
   /* ---------- Topics et liens ---------- */
@@ -353,7 +374,7 @@
 
   return {
     DEFAULT_BROKER, ID_RE, ROOM_RE, STALE_MS,
-    randomId, normRoom, sanitize, receiverUrl, remoteUrl,
+    randomId, normRoom, sanitize, detectOS, resolveOS, receiverUrl, remoteUrl,
     createReceiver, createRemote,
   };
 });

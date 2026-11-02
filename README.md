@@ -21,6 +21,7 @@ Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle 
 4. Les écrans apparaissent tout seuls dans la régie (« PC · Chrome · #a3f9 », avec l'état plein écran). Un seul écran connecté : il est sélectionné d'office. Plusieurs : « Tous les écrans » par défaut, ou choisis-en un.
 
 - **Salon** : sans lui, un écran affiche « Ouvre le lien donné par la régie ». Le nom est dans les liens (`?room=...`), mémorisé ensuite par le navigateur, et modifiable dans la régie (section Salon). Pour ouvrir la régie sur un autre appareil, copie son lien depuis cette section.
+- **Erreur système (faux plantage)** : section dédiée de la régie, version Netlify uniquement. Liste déroulante : **Auto** (chaque écran affiche l'erreur de son propre système : PC Windows → écran bleu, Mac → écran de redémarrage multilingue, Android → « Appli Système ne répond pas », iPhone/iPad → alerte iOS, autres systèmes → écran bleu) ou un **choix manuel** qui force le même écran partout. Au bout du délai choisi, ou après un clic (Android, iPhone) ou une touche (Mac), un message « Blague ! » apparaît (modifiable), puis retour à l'écran d'attente. Les écrans sont dessinés en HTML/CSS (`site/screens.js`) : aucune image, aucun logo, aucun numéro de support ni champ à remplir.
 - **Autre broker** : `?broker=wss://...` (mémorisé aussi).
 - Le broker est public et sans compte : n'importe qui qui devinerait le nom du salon pourrait afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
 - Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
@@ -81,7 +82,7 @@ Sur **iPhone**, Safari n'autorise pas le vrai plein écran sur une page web : la
   "joke": { "type": "typewriter", "text": "Salut\nça va ?", "bg": "#000000", "fg": "#ffffff", "size": 6, "duration": 10 } }
 ```
 
-Types : `text`, `typewriter`, `countdown`, `loading`, `runaway`, `shake`, `flip`, `confetti`, `blackout`, `clear`.
+Types : `text`, `typewriter`, `countdown`, `loading`, `runaway`, `shake`, `flip`, `confetti`, `blackout`, `clear` (et `oserror` avec `os` = `auto`, `windows`, `mac`, `android` ou `iphone`, version Netlify uniquement).
 
 | Champ | Rôle |
 |---|---|
