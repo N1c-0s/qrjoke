@@ -2,12 +2,6 @@
 [build]
   publish = "site"
 
-# /r/42 (QR smartphone) sert la page récepteur ; le code est lu dans l'URL.
-[[redirects]]
-  from = "/r/*"
-  to = "/index.html"
-  status = 200
-
 [[redirects]]
   from = "/remote"
   to = "/remote.html"

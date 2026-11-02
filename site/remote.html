@@ -59,36 +59,29 @@
   <section>
     <h2>Écran du PC</h2>
     <div class="row">
-      <span class="dim">Ouvre ce lien sur le PC, tape un code à 2 chiffres puis Entrée :</span>
+      <span class="dim">Ouvre ce lien sur le PC, puis clique sur « Démarrer » (ou Entrée) : plein écran et c'est prêt.</span>
     </div>
     <div class="row" style="margin-top:8px">
       <input id="pcUrl" readonly style="flex:1;min-width:220px">
       <button id="pcCopy" type="button">Copier</button>
     </div>
-    <p class="dim" style="margin:8px 0 0">Mode kiosque (plein écran sans geste) : <code id="kiosk"></code></p>
+    <p class="dim" style="margin:8px 0 0">Mode kiosque (plein écran sans geste) : <code id="kiosk" style="word-break:break-all"></code></p>
   </section>
 
   <section>
-    <h2>Cible</h2>
-    <div id="targets"></div>
-  </section>
-
-  <section>
-    <h2>Appairer un smartphone (QR)</h2>
-    <div class="row">
-      <label for="qrCode" class="dim">Code</label>
-      <input id="qrCode" inputmode="numeric" maxlength="2" size="3" placeholder="42">
-      <button id="qrFree" type="button">Code libre</button>
-      <button id="qrShow" type="button" class="primary">Afficher le QR</button>
-    </div>
-    <div id="qrBox" hidden>
-      <img id="qrImg" alt="QR code d'appairage">
+    <h2>Smartphone</h2>
+    <div id="qrBox">
+      <img id="qrImg" alt="QR code du lien récepteur">
       <div>
-        <div class="dim">Le téléphone scanne, ouvre :</div>
+        <div class="dim">Le téléphone scanne ce QR, puis un tap sur « Démarrer » passe en plein écran.</div>
         <div id="qrUrl" style="word-break:break-all"></div>
-        <div class="dim">puis un tap pour passer en plein écran.</div>
       </div>
     </div>
+  </section>
+
+  <section>
+    <h2>Écrans connectés</h2>
+    <div id="targets"></div>
   </section>
 
   <section>
@@ -129,6 +122,19 @@
   <section>
     <button id="clear" class="danger" type="button">Retour à l'écran d'attente</button>
   </section>
+
+  <section>
+    <h2>Salon</h2>
+    <div class="row">
+      <input id="roomName" size="16" maxlength="32" aria-label="Nom du salon">
+      <button id="roomSet" type="button">Changer</button>
+    </div>
+    <p class="dim" style="margin:8px 0 0">Le salon est le lien privé entre ta régie et tes écrans : seuls les écrans ouverts avec ce nom apparaissent ici. Pour ouvrir cette régie sur un autre appareil, utilise ce lien :</p>
+    <div class="row" style="margin-top:8px">
+      <input id="remoteUrl" readonly style="flex:1;min-width:220px">
+      <button id="remoteCopy" type="button">Copier</button>
+    </div>
+  </section>
 </main>
 
 <div id="toast" role="status"></div>
@@ -150,9 +156,12 @@
   };
 
   const params = new URLSearchParams(location.search);
-  const paramRoom = params.get('room');
-  if (paramRoom && Core.ROOM_RE.test(paramRoom)) store.set('qj-room', paramRoom);
-  const room = Core.normRoom(paramRoom || store.get('qj-room'));
+
+  // Salon : dans le lien, sinon mémorisé, sinon généré au hasard à la première visite.
+  let room = Core.normRoom(params.get('room')) || Core.normRoom(store.get('qj-room'));
+  if (!room) room = Core.randomId(8);
+  store.set('qj-room', room);
+  history.replaceState(null, '', '/remote?room=' + room);
 
   const wantedBroker = params.get('broker') || store.get('qj-broker');
   const brokerUrl = /^wss:\/\//.test(wantedBroker || '') ? wantedBroker : Core.DEFAULT_BROKER;
@@ -172,13 +181,31 @@
     statusEl.className = 'pill ' + (ok ? 'ok' : 'bad');
   }
 
-  /* ----- Lien du PC ----- */
+  function copy(inputId, message) {
+    const el = $(inputId);
+    el.select();
+    if (navigator.clipboard) navigator.clipboard.writeText(el.value).then(() => toast(message), () => {});
+  }
+
+  /* ----- Liens, QR et salon ----- */
   const pcUrl = Core.receiverUrl(location.origin, room);
   $('pcUrl').value = pcUrl;
-  $('kiosk').textContent = 'chrome.exe --kiosk "' + pcUrl + '"';
-  $('pcCopy').addEventListener('click', () => {
-    $('pcUrl').select();
-    if (navigator.clipboard) navigator.clipboard.writeText(pcUrl).then(() => toast('Lien copié'), () => {});
+  $('kiosk').textContent = 'chrome.exe --kiosk "' + pcUrl + '&auto=1"';
+  $('pcCopy').addEventListener('click', () => copy('pcUrl', 'Lien du PC copié'));
+  $('remoteUrl').value = Core.remoteUrl(location.origin, room);
+  $('remoteCopy').addEventListener('click', () => copy('remoteUrl', 'Lien de la régie copié'));
+  $('roomName').value = room;
+  $('roomSet').addEventListener('click', () => {
+    const next = Core.normRoom($('roomName').value.trim());
+    if (!next) { toast('Salon : lettres, chiffres, - ou _ (32 max).', true); return; }
+    store.set('qj-room', next);
+    location.href = '/remote?room=' + next;
+  });
+
+  window.QRCode.toString(pcUrl, { type: 'svg', margin: 2 }, (err, svg) => {
+    if (err) { toast('QR indisponible.', true); return; }
+    $('qrImg').src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    $('qrUrl').textContent = pcUrl;
   });
 
   /* ----- Connexion au broker ----- */
@@ -197,42 +224,44 @@
     if (!res.ok) setStatus('Broker injoignable', false);
   });
 
-  /* ----- Cibles ----- */
+  /* ----- Écrans connectés ----- */
   function describe(r) {
-    const kind = r.kind === 'mobile' ? 'Smartphone' : 'PC';
-    return `Code ${r.code} · ${kind} · ${r.fullscreen ? 'plein écran ✅' : 'pas en plein écran ⚠️'}`;
+    const name = r.label || (r.kind === 'mobile' ? 'Smartphone' : 'PC');
+    return `${name} · #${r.id.slice(0, 4)} · ${r.fullscreen ? 'plein écran ✅' : 'pas en plein écran ⚠️'}`;
   }
 
   function renderTargets() {
-    const codes = receivers.map((r) => r.code);
-    if (target !== 'all' && !codes.includes(target)) target = null;
-    if (!target && receivers.length === 1) target = receivers[0].code;
+    const ids = receivers.map((r) => r.id);
+    if (target !== 'all' && !ids.includes(target)) target = null;
+    if (!target && receivers.length === 1) target = receivers[0].id;
+    if (!target && receivers.length > 1) target = 'all';
 
     targetsEl.replaceChildren();
     if (!receivers.length) {
       const p = document.createElement('p');
       p.className = 'dim';
-      p.textContent = 'Aucun écran appairé. Tape un code sur la page du PC, ou scanne le QR avec un téléphone.';
+      p.textContent = 'Aucun écran pour l\'instant. Ouvre le lien du PC, ou scanne le QR avec un téléphone : ils apparaissent ici tout seuls.';
       targetsEl.append(p);
       return;
     }
 
-    const rows = [{ code: 'all', text: `Tous les écrans (${receivers.length})` }]
-      .concat(receivers.map((r) => ({ code: r.code, text: describe(r), release: true })));
+    const rows = [];
+    if (receivers.length > 1) rows.push({ id: 'all', text: `Tous les écrans (${receivers.length})` });
+    for (const r of receivers) rows.push({ id: r.id, text: describe(r), release: true });
 
     for (const row of rows) {
       const div = document.createElement('div');
-      div.className = 'target' + (target === row.code ? ' sel' : '');
+      div.className = 'target' + (target === row.id ? ' sel' : '');
       const label = document.createElement('label');
       const radio = document.createElement('input');
-      radio.type = 'radio'; radio.name = 'target'; radio.value = row.code; radio.checked = target === row.code;
-      radio.addEventListener('change', () => { target = row.code; renderTargets(); });
+      radio.type = 'radio'; radio.name = 'target'; radio.value = row.id; radio.checked = target === row.id;
+      radio.addEventListener('change', () => { target = row.id; renderTargets(); });
       label.append(radio, ' ', row.text);
       div.append(label);
       if (row.release) {
         const b = document.createElement('button');
         b.type = 'button'; b.textContent = 'Libérer';
-        b.addEventListener('click', () => remote.release(row.code));
+        b.addEventListener('click', () => remote.release(row.id));
         div.append(b);
       }
       targetsEl.append(div);
@@ -247,9 +276,9 @@
   };
 
   async function send(joke, label) {
-    if (!target) { toast('Choisis une cible d\'abord.', true); return; }
+    if (!target) { toast('Aucun écran connecté.', true); return; }
     const res = await remote.send(target, joke);
-    if (res.ok) toast(`${label || 'Envoyé'} → ${target === 'all' ? res.count + ' écran(s)' : 'code ' + target}`);
+    if (res.ok) toast(`${label || 'Envoyé'} → ${res.count} écran${res.count > 1 ? 's' : ''}`);
     else toast(ERRORS[res.error] || 'Échec de l\'envoi.', true);
   }
 
@@ -292,25 +321,6 @@
   });
 
   $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));
-
-  /* ----- QR smartphone (généré ici, dans le navigateur) ----- */
-  function showQr() {
-    const c = $('qrCode').value.trim();
-    if (!/^\d{2}$/.test(c)) { toast('Le code doit faire 2 chiffres.', true); return; }
-    const url = Core.joinUrl(location.origin, c, room);
-    window.QRCode.toString(url, { type: 'svg', margin: 2 }, (err, svg) => {
-      if (err) { toast('QR indisponible.', true); return; }
-      $('qrImg').src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-      $('qrUrl').textContent = url;
-      $('qrBox').hidden = false;
-    });
-  }
-  $('qrCode').addEventListener('input', () => { $('qrCode').value = $('qrCode').value.replace(/\D/g, '').slice(0, 2); });
-  $('qrShow').addEventListener('click', showQr);
-  $('qrFree').addEventListener('click', () => {
-    const c = remote.freeCode();
-    if (c) { $('qrCode').value = c; showQr(); } else toast('Plus aucun code libre.', true);
-  });
 })();
 </script>
 </body>

@@ -67,8 +67,7 @@
 <main id="pair">
   <h1>Appairage</h1>
   <form id="form" autocomplete="off">
-    <input id="code" inputmode="numeric" pattern="[0-9]{2}" maxlength="2" placeholder="••" aria-label="Code à 2 chiffres">
-    <button id="go" type="submit">Valider</button>
+    <button id="go" type="submit" autofocus>Démarrer</button>
   </form>
   <p id="msg" role="status"></p>
 </main>
@@ -83,12 +82,15 @@
 
   const Core = window.QrJokeCore;
   const $ = (id) => document.getElementById(id);
-  const pair = $('pair'), form = $('form'), codeEl = $('code'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
+  const pair = $('pair'), form = $('form'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
 
+  const ua = navigator.userAgent;
   const isMobile =
-    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
-    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+    /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
   const kind = isMobile ? 'mobile' : 'pc';
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : '';
+  const label = (isMobile ? 'Smartphone' : 'PC') + (browser ? ' · ' + browser : '');
   const params = new URLSearchParams(location.search);
   const waitTheme = params.get('wait') === 'white' ? 'white' : 'black';
 
@@ -97,55 +99,43 @@
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* rien */ } },
   };
 
-  // Identifiant stable du navigateur : permet de reprendre son propre code après une coupure.
-  let clientId = store.get('qj-cid');
-  if (!clientId) { clientId = Core.randomId(20); store.set('qj-cid', clientId); }
+  // Identifiant stable de ce navigateur : la régie le voit comme un écran.
+  let id = store.get('qj-id');
+  if (!/^[a-z0-9]{8}$/.test(id)) { id = Core.randomId(8); store.set('qj-id', id); }
 
-  // Salon : ?room=monsalon (mémorisé), sinon le salon par défaut.
-  const paramRoom = params.get('room');
-  if (paramRoom && Core.ROOM_RE.test(paramRoom)) store.set('qj-room', paramRoom);
-  const room = Core.normRoom(paramRoom || store.get('qj-room'));
+  // Salon : ?room=... dans le lien de la régie (mémorisé ensuite par ce navigateur).
+  const paramRoom = Core.normRoom(params.get('room'));
+  if (paramRoom) store.set('qj-room', paramRoom);
+  const room = paramRoom || Core.normRoom(store.get('qj-room'));
 
   // Broker : celui par défaut, ou ?broker=wss://... pour en changer.
   const wantedBroker = params.get('broker') || store.get('qj-broker');
   const brokerUrl = /^wss:\/\//.test(wantedBroker || '') ? wantedBroker : Core.DEFAULT_BROKER;
   if (params.get('broker') && /^wss:\/\//.test(params.get('broker'))) store.set('qj-broker', params.get('broker'));
 
-  let rx = null, joined = false, code = '', starting = false;
+  let rx = null, joined = false, starting = false;
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
 
-  /* ----- Appairage : QR (/r/42) ou saisie ----- */
-  const m = location.pathname.match(/^\/r\/(\d{2})\/?$/);
-  if (m) {
-    codeEl.value = m[1];
-    goBtn.textContent = 'Toucher pour continuer';
-  } else {
-    codeEl.focus();
+  if (!room) {
+    goBtn.hidden = true;
+    msg.style.color = '#555';
+    msg.textContent = 'Ouvre le lien donné par la régie.';
   }
-  codeEl.addEventListener('input', () => {
-    codeEl.value = codeEl.value.replace(/\D/g, '').slice(0, 2);
-  });
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (starting) return;
-    const c = codeEl.value.trim();
-    if (!/^\d{2}$/.test(c)) { msg.textContent = 'Entre 2 chiffres.'; return; }
+  /* ----- Démarrage : un clic ou Entrée (le plein écran exige un geste) ----- */
+  async function start() {
+    if (starting || rx || !room) return;
     msg.textContent = '';
-    code = c;
-    // Le plein écran exige un geste de l'utilisateur : on le demande ici, tout de suite.
     enterFullscreen();
     initAudio();
 
     starting = true;
     goBtn.disabled = true;
     rx = Core.createReceiver({
-      mqtt: window.mqtt, brokerUrl, room, code, clientId, kind,
+      mqtt: window.mqtt, brokerUrl, room, id, kind, label,
       onJoke: runJoke,
-      onKick: (why) => leave(
-        why === 'released' ? 'Session terminée.' :
-        why === 'taken' ? 'Repris dans un autre onglet.' : 'Ce code est déjà utilisé.'),
+      onKick: (why) => leave(why === 'released' ? 'Session terminée.' : 'Repris dans un autre onglet.'),
     });
     const res = await rx.start();
     starting = false;
@@ -156,13 +146,19 @@
       requestWake();
       reportState();
     } else {
-      leave(res.error === 'occupied' ? 'Ce code est déjà utilisé.' : 'Broker injoignable, réessaie.');
+      leave('Broker injoignable, réessaie.');
     }
-  });
+  }
+  form.addEventListener('submit', (e) => { e.preventDefault(); start(); });
+
+  // Mode kiosque (?auto=1) : se connecte sans geste. Le son se débloque au premier clic ou à la première touche.
+  if (room && params.get('auto') === '1') start();
+  const unlockAudio = () => initAudio();
+  document.addEventListener('pointerdown', unlockAudio);
+  document.addEventListener('keydown', unlockAudio);
 
   function leave(message) {
     joined = false;
-    code = '';
     const r = rx;
     rx = null;
     if (r) r.leave();
@@ -171,9 +167,9 @@
     releaseWake();
     stage.hidden = true;
     pair.hidden = false;
+    msg.style.color = '';
     msg.textContent = message || '';
-    codeEl.value = '';
-    if (!m) codeEl.focus();
+    goBtn.focus();
   }
   window.addEventListener('pagehide', () => { if (rx) rx.leave(); });
 

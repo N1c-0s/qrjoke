@@ -10,15 +10,19 @@ Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle 
 |---|---|---|
 | Hébergement | Netlify, 100 % statique | Ton PC, sur ton réseau Wi-Fi |
 | Temps réel | Broker MQTT public (`wss://broker.emqx.io:8084/mqtt`) | Serveur Socket.IO |
-| Accès à la régie | Aucun mot de passe | Mot de passe |
+| Appairage | Aucun code : lien avec un salon privé | Code à 2 chiffres ou QR |
+| Accès à la régie | Lien avec le salon, sans mot de passe | Mot de passe |
 | Marche hors de chez toi | Oui, depuis n'importe quel réseau | Non, même réseau seulement |
 
-### Version Netlify
-- Récepteur : `https://<ton-site>.netlify.app/` (le QR ouvre `/r/42`).
-- Régie : `https://<ton-site>.netlify.app/remote`. Elle affiche le lien du PC, le QR pour les téléphones et les mêmes blagues que la version locale.
-- **Salon** : par défaut `qrjoke-main`. Ajoute `?room=monsalon` aux deux liens pour avoir ton propre salon (mémorisé ensuite par le navigateur), utile si quelqu'un d'autre utilise le même code que toi.
+### Version Netlify (sans code d'appairage)
+1. Ouvre la **régie** : `https://<ton-site>.netlify.app/remote`. Elle génère un **salon** privé (un petit nom au hasard) et te donne les liens.
+2. **PC** : ouvre le lien « Écran du PC » affiché par la régie, puis clique sur **Démarrer** (ou Entrée). Plein écran, écran d'attente noir. Mode kiosque sans geste : `chrome.exe --kiosk "<lien>&auto=1"`.
+3. **Smartphone** : scanne le QR de la régie, puis un tap sur **Démarrer**.
+4. Les écrans apparaissent tout seuls dans la régie (« PC · Chrome · #a3f9 », avec l'état plein écran). Un seul écran connecté : il est sélectionné d'office. Plusieurs : « Tous les écrans » par défaut, ou choisis-en un.
+
+- **Salon** : sans lui, un écran affiche « Ouvre le lien donné par la régie ». Le nom est dans les liens (`?room=...`), mémorisé ensuite par le navigateur, et modifiable dans la régie (section Salon). Pour ouvrir la régie sur un autre appareil, copie son lien depuis cette section.
 - **Autre broker** : `?broker=wss://...` (mémorisé aussi).
-- Le broker est public et sans compte : n'importe qui qui connaît le salon et le code pourrait afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
+- Le broker est public et sans compte : n'importe qui qui devinerait le nom du salon pourrait afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
 - Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
 
 ### Version locale

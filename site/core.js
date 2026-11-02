@@ -1,10 +1,12 @@
 /*
  * QrJoke : protocole MQTT léger, partagé par le récepteur, la régie et les tests.
  *
- * Le broker est public et il n'y a ni compte ni clé : tout est basé sur un nom de salon
- * (par défaut "qrjoke-main", modifiable avec ?room=monsalon) et un code à 2 chiffres.
- * Les écrans valident chaque blague reçue (liste blanche, valeurs bornées, texte seul),
- * donc au pire un inconnu qui devine le salon et le code pourrait afficher un message.
+ * Le broker est public et il n'y a ni compte, ni clé, ni code d'appairage :
+ *   - la régie génère un nom de salon privé (ex. "k4x9ab2q") qu'elle met dans les liens ;
+ *   - chaque écran qui ouvre un lien avec ce salon s'annonce tout seul (présence) ;
+ *   - la régie voit la liste des écrans et envoie ses blagues à l'un d'eux ou à tous.
+ * Les écrans valident chaque blague reçue (liste blanche, valeurs bornées, texte seul) :
+ * au pire, quelqu'un qui devinerait le nom du salon pourrait afficher un message.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -13,22 +15,30 @@
   'use strict';
 
   const DEFAULT_BROKER = 'wss://broker.emqx.io:8084/mqtt';
-  const DEFAULT_ROOM = 'qrjoke-main';
-  const CODE_RE = /^\d{2}$/;
+  const ID_RE = /^[a-z0-9]{4,12}$/;
   const ROOM_RE = /^[A-Za-z0-9_-]{1,32}$/;
   const HEARTBEAT_MS = 10000; // un écran signale sa présence toutes les 10 s
   const STALE_MS = 25000; // sans signe de vie depuis 25 s, il disparaît de la régie
-  const JOIN_WAIT_MS = 1500; // temps d'écoute avant de prendre un code
 
   const noop = () => {};
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const normRoom = (r) => (typeof r === 'string' && ROOM_RE.test(r) ? r : DEFAULT_ROOM);
 
   const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
   function randomId(len) {
     let out = '';
-    for (let i = 0; i < (len || 10); i += 1) out += ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+    const n = len || 8;
+    const c = typeof globalThis !== 'undefined' ? globalThis.crypto : null;
+    if (c && c.getRandomValues) {
+      const bytes = c.getRandomValues(new Uint8Array(n));
+      for (const b of bytes) out += ALPHABET[b % 36];
+    } else {
+      for (let i = 0; i < n; i += 1) out += ALPHABET[Math.floor(Math.random() * 36)];
+    }
     return out;
+  }
+
+  /** Renvoie le nom de salon en minuscules s'il est valide, sinon null. */
+  function normRoom(r) {
+    return typeof r === 'string' && ROOM_RE.test(r) ? r.toLowerCase() : null;
   }
 
   const pack = (data) => JSON.stringify(data);
@@ -83,25 +93,25 @@
   /* ---------- Topics et liens ---------- */
 
   const topics = (room) => ({
-    joke: (code) => `qrjoke/${room}/${code}/joke`,
-    ctl: (code) => `qrjoke/${room}/${code}/ctl`,
-    presence: (code) => `qrjoke/${room}/${code}/presence`,
+    joke: (id) => `qrjoke/${room}/${id}/joke`,
+    ctl: (id) => `qrjoke/${room}/${id}/ctl`,
+    presence: (id) => `qrjoke/${room}/${id}/presence`,
     presenceAll: `qrjoke/${room}/+/presence`,
   });
 
-  const receiverUrl = (origin, room) =>
-    room && room !== DEFAULT_ROOM ? `${origin}/?room=${room}` : `${origin}/`;
-  const joinUrl = (origin, code, room) =>
-    room && room !== DEFAULT_ROOM ? `${origin}/r/${code}?room=${room}` : `${origin}/r/${code}`;
+  const receiverUrl = (origin, room) => `${origin}/?room=${room}`;
+  const remoteUrl = (origin, room) => `${origin}/remote?room=${room}`;
 
   /* ---------- Récepteur (écran du PC ou du smartphone) ---------- */
 
   function createReceiver(opts) {
-    const { mqtt, code, clientId, kind } = opts;
+    const { mqtt, id, kind } = opts;
     const room = normRoom(opts.room);
+    if (!room) throw new Error('salon invalide');
+    if (!ID_RE.test(String(id))) throw new Error('identifiant invalide');
+    const label = typeof opts.label === 'string' ? opts.label.slice(0, 40) : '';
     const brokerUrl = opts.brokerUrl || DEFAULT_BROKER;
     const heartbeatMs = opts.heartbeatMs || HEARTBEAT_MS;
-    const joinWaitMs = opts.joinWaitMs || JOIN_WAIT_MS;
     const onJoke = opts.onJoke || noop;
     const onKick = opts.onKick || noop;
     const onStatus = opts.onStatus || noop;
@@ -110,9 +120,11 @@
     const inst = randomId(8); // identifie cette page précise
     const since = Date.now();
     let client = null, hb = null, failTimer = null;
-    let joining = false, joined = false, ended = false, fullscreen = false, occupied = false;
+    let joining = false, joined = false, ended = false, fullscreen = false;
 
-    const presenceData = () => ({ type: 'presence', from: inst, clientId, kind, fullscreen, since });
+    const presenceData = () => ({
+      type: 'presence', from: inst, id, kind: kind === 'mobile' ? 'mobile' : 'pc', label, fullscreen, since,
+    });
 
     function publish(topic, data, qos) {
       if (!client) return Promise.resolve();
@@ -123,7 +135,7 @@
     }
 
     function sendPresence() {
-      if (joined && !ended) publish(T.presence(code), presenceData(), 0);
+      if (joined && !ended) publish(T.presence(id), presenceData(), 0);
     }
 
     function stop() {
@@ -135,7 +147,7 @@
 
     async function leave() {
       if (ended) return;
-      if (joined) await publish(T.presence(code), { type: 'bye', from: inst, clientId }, 1);
+      if (joined) await publish(T.presence(id), { type: 'bye', from: inst, id }, 1);
       joined = false;
       stop();
     }
@@ -149,29 +161,21 @@
 
     async function handle(topic, payload) {
       const data = unpack(payload.toString());
-      if (!data || data.from === inst || ended) return;
+      if (!data || data.from === inst || ended || !joined) return;
 
-      if (topic === T.presence(code)) {
-        if (data.type !== 'presence') return;
-        if (!joined) {
-          if (data.clientId !== clientId) occupied = true; // un autre appareil tient déjà ce code
-        } else if (data.clientId !== clientId) {
-          // Deux appareils ont pris le code en même temps : le plus ancien le garde.
-          if (data.since < since || (data.since === since && data.clientId < clientId)) yieldTo('occupied');
-        } else if (data.since > since) {
-          yieldTo('taken'); // le même navigateur a rouvert la page ailleurs
-        }
+      if (topic === T.presence(id)) {
+        // Le même navigateur a rouvert la page ailleurs : la plus récente garde la place.
+        if (data.type === 'presence' && data.id === id && data.since > since) yieldTo('taken');
         return;
       }
 
-      if (topic === T.ctl(code) || topic === T.ctl('all')) {
-        if (!joined) return;
+      if (topic === T.ctl(id) || topic === T.ctl('all')) {
         if (data.type === 'who') sendPresence();
         else if (data.type === 'release') { await leave(); onKick('released'); }
         return;
       }
 
-      if (joined && data.type === 'joke' && (topic === T.joke(code) || topic === T.joke('all'))) {
+      if (data.type === 'joke' && (topic === T.joke(id) || topic === T.joke('all'))) {
         const j = sanitize(data.joke);
         if (j) onJoke(j);
       }
@@ -201,27 +205,22 @@
           if (joined) { sendPresence(); return; } // reconnexion : on se ré-annonce
           if (joining) return;
           joining = true;
-          client.subscribe([T.presence(code), T.ctl(code)], { qos: 1 }, async (err) => {
+          const subs = [T.presence(id), T.joke(id), T.joke('all'), T.ctl(id), T.ctl('all')];
+          client.subscribe(subs, { qos: 1 }, (err) => {
             if (err) return fail('broker');
-            publish(T.ctl(code), { type: 'who', from: inst });
-            await sleep(joinWaitMs);
-            if (ended) return;
-            if (occupied) return fail('occupied');
-            return client.subscribe([T.joke(code), T.joke('all'), T.ctl('all')], { qos: 1 }, (err2) => {
-              if (err2) return fail('broker');
-              if (ended) return;
-              joined = true;
-              clearTimeout(failTimer);
-              sendPresence();
-              hb = setInterval(sendPresence, heartbeatMs);
-              return settle({ ok: true });
-            });
+            if (ended) return undefined;
+            joined = true;
+            clearTimeout(failTimer);
+            sendPresence();
+            hb = setInterval(sendPresence, heartbeatMs);
+            return settle({ ok: true });
           });
         });
       });
     }
 
     return {
+      id,
       start,
       leave,
       setFullscreen(v) {
@@ -237,26 +236,30 @@
   function createRemote(opts) {
     const { mqtt } = opts;
     const room = normRoom(opts.room);
+    if (!room) throw new Error('salon invalide');
     const brokerUrl = opts.brokerUrl || DEFAULT_BROKER;
     const staleMs = opts.staleMs || STALE_MS;
     const onReceivers = opts.onReceivers || noop;
     const onStatus = opts.onStatus || noop;
 
     const T = topics(room);
-    const presRe = new RegExp(`^qrjoke/${room}/(\\d{2})/presence$`);
+    const prefix = `qrjoke/${room}/`;
     const inst = randomId(8);
-    const peers = new Map(); // code -> { data, rx }
+    const peers = new Map(); // id -> { data, rx }
     let client = null, last = '', pruneTimer = null;
 
     function snapshot() {
       const now = Date.now();
       const out = [];
-      for (const [code, p] of peers) {
+      for (const [id, p] of peers) {
         if (now - p.rx <= staleMs) {
-          out.push({ code, kind: p.data.kind, online: true, fullscreen: !!p.data.fullscreen, since: p.data.since });
+          out.push({
+            id, kind: p.data.kind, label: typeof p.data.label === 'string' ? p.data.label : '',
+            fullscreen: !!p.data.fullscreen, since: p.data.since,
+          });
         }
       }
-      return out.sort((a, b) => a.code.localeCompare(b.code));
+      return out.sort((a, b) => (a.since || 0) - (b.since || 0) || a.id.localeCompare(b.id));
     }
     function emit() {
       const s = snapshot();
@@ -298,12 +301,13 @@
             });
           });
           client.on('message', (topic, payload) => {
-            const m = presRe.exec(topic);
-            if (!m) return;
+            if (!topic.startsWith(prefix)) return;
+            const parts = topic.slice(prefix.length).split('/');
+            if (parts.length !== 2 || parts[1] !== 'presence' || !ID_RE.test(parts[0])) return;
             const data = unpack(payload.toString());
             if (!data) return;
-            if (data.type === 'bye') peers.delete(m[1]);
-            else if (data.type === 'presence') peers.set(m[1], { data, rx: Date.now() });
+            if (data.type === 'bye') peers.delete(parts[0]);
+            else if (data.type === 'presence') peers.set(parts[0], { data, rx: Date.now() });
             else return;
             emit();
           });
@@ -313,39 +317,30 @@
 
       receivers: snapshot,
 
-      async send(code, joke) {
+      /** target : l'identifiant d'un écran, ou 'all'. */
+      async send(target, joke) {
         const j = sanitize(joke);
         if (!j) return { ok: false, error: 'invalid-joke' };
         const snap = snapshot();
         let count;
-        if (code === 'all') {
+        if (target === 'all') {
           count = snap.length;
           if (!count) return { ok: false, error: 'no-receiver' };
-        } else if (CODE_RE.test(String(code))) {
-          if (!snap.some((r) => r.code === code)) return { ok: false, error: 'no-receiver' };
+        } else if (ID_RE.test(String(target))) {
+          if (!snap.some((r) => r.id === target)) return { ok: false, error: 'no-receiver' };
           count = 1;
         } else {
           return { ok: false, error: 'invalid' };
         }
-        await publish(T.joke(code), { type: 'joke', from: inst, joke: j });
+        await publish(T.joke(target), { type: 'joke', from: inst, joke: j });
         return { ok: true, count };
       },
 
-      async release(code) {
-        if (!CODE_RE.test(String(code))) return;
-        await publish(T.ctl(code), { type: 'release', from: inst });
-        peers.delete(code);
+      async release(id) {
+        if (!ID_RE.test(String(id))) return;
+        await publish(T.ctl(id), { type: 'release', from: inst });
+        peers.delete(id);
         emit();
-      },
-
-      freeCode() {
-        const used = new Set(snapshot().map((r) => r.code));
-        const free = [];
-        for (let i = 0; i < 100; i += 1) {
-          const c = String(i).padStart(2, '0');
-          if (!used.has(c)) free.push(c);
-        }
-        return free.length ? free[Math.floor(Math.random() * free.length)] : null;
       },
 
       end() {
@@ -357,8 +352,8 @@
   }
 
   return {
-    DEFAULT_BROKER, DEFAULT_ROOM, CODE_RE, ROOM_RE, STALE_MS, JOIN_WAIT_MS,
-    randomId, normRoom, sanitize, receiverUrl, joinUrl,
+    DEFAULT_BROKER, ID_RE, ROOM_RE, STALE_MS,
+    randomId, normRoom, sanitize, receiverUrl, remoteUrl,
     createReceiver, createRemote,
   };
 });
