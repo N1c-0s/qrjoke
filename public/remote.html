@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>QrJoke · Régie</title>
+<style>
+  :root {
+    --bg: #0f1218; --card: #181d27; --line: #2a3140; --text: #e8ebf2; --dim: #8b93a7;
+    --accent: #6366f1; --ok: #22c55e; --bad: #ef4444;
+  }
+  [hidden] { display: none !important; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.25rem; margin: 0; }
+  h2 { font-size: .95rem; margin: 0 0 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  button, select, input, textarea { font: inherit; color: var(--text); background: #11151d; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  button { cursor: pointer; background: #232a39; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); }
+  button.danger { background: #3b1d22; border-color: #6b2630; }
+  textarea { width: 100%; min-height: 70px; resize: vertical; }
+  input[type=color] { padding: 2px; width: 44px; height: 34px; }
+  .pill { font-size: .8rem; padding: 3px 10px; border-radius: 99px; background: #2a3140; }
+  .pill.ok { background: #14351f; color: #86efac; }
+  .pill.bad { background: #3b1d22; color: #fca5a5; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+  .grid button { text-align: left; padding: 12px; }
+  .target { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; }
+  .target label { flex: 1; cursor: pointer; }
+  .target.sel { border-color: var(--accent); }
+  .dim { color: var(--dim); }
+  #login { max-width: 360px; margin: 18vh auto 0; }
+  #login input { width: 100%; margin: 8px 0; }
+  #clear { width: 100%; padding: 16px; font-size: 1.05rem; }
+  #qrBox { margin-top: 10px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  #qrImg { width: 180px; height: 180px; background: #fff; border-radius: 8px; }
+  #toast {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: #1f2937; border: 1px solid var(--line); padding: 10px 16px; border-radius: 10px; transition: .2s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.bad { border-color: var(--bad); color: #fecaca; }
+</style>
+</head>
+<body>
+
+<main id="login">
+  <section>
+    <h1>QrJoke · Régie</h1>
+    <p class="dim">Mot de passe affiché dans la console du serveur.</p>
+    <form id="loginForm">
+      <input id="pw" type="password" placeholder="Mot de passe" autocomplete="current-password" required>
+      <button class="primary" type="submit">Entrer</button>
+    </form>
+    <p id="loginMsg" class="dim"></p>
+  </section>
+</main>
+
+<main id="app" hidden>
+  <header>
+    <h1>QrJoke · Régie</h1>
+    <span id="status" class="pill">Connexion…</span>
+  </header>
+
+  <section>
+    <h2>Cible</h2>
+    <div id="targets"></div>
+  </section>
+
+  <section>
+    <h2>Appairer un smartphone (QR)</h2>
+    <div class="row">
+      <label for="qrCode" class="dim">Code</label>
+      <input id="qrCode" inputmode="numeric" maxlength="2" size="3" placeholder="42">
+      <button id="qrFree" type="button">Code libre</button>
+      <button id="qrShow" type="button" class="primary">Afficher le QR</button>
+    </div>
+    <div id="qrBox" hidden>
+      <img id="qrImg" alt="QR code d'appairage">
+      <div>
+        <div class="dim">Le téléphone scanne, ouvre :</div>
+        <div id="qrUrl"></div>
+        <div class="dim">puis un tap pour passer en plein écran.</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Blagues</h2>
+    <div id="jokes" class="grid"></div>
+  </section>
+
+  <section>
+    <h2>Texte libre</h2>
+    <form id="free">
+      <textarea id="ftext" placeholder="Écris ton message…"></textarea>
+      <div class="row" style="margin-top:10px">
+        <select id="ftype" aria-label="Effet">
+          <option value="text">Texte</option>
+          <option value="typewriter">Machine à écrire</option>
+          <option value="shake">Tremblement</option>
+          <option value="flip">À l'envers</option>
+          <option value="confetti">Confettis</option>
+          <option value="blackout">Écran noir + petit texte</option>
+        </select>
+        <label class="dim">Fond <input id="fbg" type="color" value="#000000"></label>
+        <label class="dim">Texte <input id="ffg" type="color" value="#ffffff"></label>
+        <label class="dim">Taille <input id="fsize" type="range" min="2" max="25" value="8"></label>
+        <label class="dim">Durée (s, 0 = reste) <input id="fdur" type="number" min="0" max="3600" value="0" style="width:70px"></label>
+        <select id="fsound" aria-label="Son">
+          <option value="">Sans son</option>
+          <option value="horn">Klaxon</option>
+          <option value="sad">Trombone triste</option>
+          <option value="ding">Ding</option>
+          <option value="boing">Boing</option>
+        </select>
+        <label class="dim"><input id="fvib" type="checkbox"> Vibration</label>
+        <button class="primary" type="submit">Envoyer</button>
+      </div>
+    </form>
+  </section>
+
+  <section>
+    <button id="clear" class="danger" type="button">Retour à l'écran d'attente</button>
+  </section>
+</main>
+
+<div id="toast" role="status"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const loginEl = $('login'), appEl = $('app'), loginMsg = $('loginMsg'), statusEl = $('status');
+  const targetsEl = $('targets'), jokesEl = $('jokes'), toastEl = $('toast');
+
+  let socket = null, receivers = [], target = null, toastTimer = null;
+
+  function toast(text, bad) {
+    toastEl.textContent = text;
+    toastEl.className = 'show' + (bad ? ' bad' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { toastEl.className = ''; }, 2400);
+  }
+
+  function setStatus(text, ok) {
+    statusEl.textContent = text;
+    statusEl.className = 'pill ' + (ok ? 'ok' : 'bad');
+  }
+
+  /* ----- Connexion ----- */
+  function connect(password) {
+    if (socket) socket.disconnect();
+    socket = io('/remote', { auth: { password } });
+
+    socket.on('connect', () => {
+      try { sessionStorage.setItem('qj-pw', password); } catch (e) { /* rien */ }
+      loginEl.hidden = true;
+      appEl.hidden = false;
+      setStatus('Connecté', true);
+      loadJokes();
+    });
+    socket.on('connect_error', (err) => {
+      if (err.message === 'unauthorized' || err.message === 'blocked') {
+        try { sessionStorage.removeItem('qj-pw'); } catch (e) { /* rien */ }
+        socket.disconnect();
+        appEl.hidden = true;
+        loginEl.hidden = false;
+        loginMsg.textContent = err.message === 'blocked'
+          ? 'Trop d\'essais, attends 1 minute.'
+          : 'Mot de passe incorrect.';
+      } else {
+        setStatus('Reconnexion…', false);
+      }
+    });
+    socket.on('disconnect', () => setStatus('Déconnecté', false));
+    socket.on('receivers', (list) => { receivers = list; renderTargets(); });
+  }
+
+  $('loginForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    loginMsg.textContent = '';
+    connect($('pw').value);
+  });
+
+  /* ----- Cibles ----- */
+  function describe(r) {
+    const kind = r.kind === 'mobile' ? 'Smartphone' : 'PC';
+    if (!r.online) return `Code ${r.code} · ${kind} · hors ligne`;
+    return `Code ${r.code} · ${kind} · ${r.fullscreen ? 'plein écran ✅' : 'pas en plein écran ⚠️'}`;
+  }
+
+  function renderTargets() {
+    const codes = receivers.map((r) => r.code);
+    if (target !== 'all' && !codes.includes(target)) target = null;
+    if (!target && receivers.length === 1) target = receivers[0].code;
+
+    targetsEl.replaceChildren();
+    if (!receivers.length) {
+      const p = document.createElement('p');
+      p.className = 'dim';
+      p.textContent = 'Aucun écran appairé. Tape un code sur la page d\'appairage du PC, ou scanne le QR avec un téléphone.';
+      targetsEl.append(p);
+      return;
+    }
+
+    const rows = [{ code: 'all', text: `Tous les écrans (${receivers.filter((r) => r.online).length})` }]
+      .concat(receivers.map((r) => ({ code: r.code, text: describe(r), release: true })));
+
+    for (const row of rows) {
+      const div = document.createElement('div');
+      div.className = 'target' + (target === row.code ? ' sel' : '');
+      const label = document.createElement('label');
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = 'target'; radio.value = row.code; radio.checked = target === row.code;
+      radio.addEventListener('change', () => { target = row.code; renderTargets(); });
+      label.append(radio, ' ', row.text);
+      div.append(label);
+      if (row.release) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = 'Libérer';
+        b.addEventListener('click', () => socket.emit('release', row.code));
+        div.append(b);
+      }
+      targetsEl.append(div);
+    }
+  }
+
+  /* ----- Envoi ----- */
+  const ERRORS = {
+    'no-receiver': 'Aucun écran en ligne sur cette cible.',
+    'invalid-joke': 'Blague invalide.',
+  };
+
+  function send(joke, label) {
+    if (!target) { toast('Choisis une cible d\'abord.', true); return; }
+    socket.emit('send', { code: target, joke }, (res) => {
+      if (res && res.ok) toast(`${label || 'Envoyé'} → ${target === 'all' ? res.count + ' écran(s)' : 'code ' + target}`);
+      else toast(ERRORS[res && res.error] || 'Échec de l\'envoi.', true);
+    });
+  }
+
+  /* ----- Blagues prédéfinies (jokes.json) ----- */
+  async function loadJokes() {
+    try {
+      const list = await fetch('/api/jokes').then((r) => r.json());
+      jokesEl.replaceChildren();
+      for (const item of list) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = `${item.emoji || '🎭'} ${item.label}`;
+        b.addEventListener('click', () => send(item.joke, item.label));
+        jokesEl.append(b);
+      }
+    } catch (e) {
+      jokesEl.textContent = 'Impossible de charger jokes.json';
+    }
+  }
+
+  /* ----- Texte libre ----- */
+  $('free').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = $('ftext').value.trim();
+    if (!text) { toast('Écris un message.', true); return; }
+    send({
+      type: $('ftype').value,
+      text,
+      bg: $('fbg').value,
+      fg: $('ffg').value,
+      size: Number($('fsize').value),
+      duration: Number($('fdur').value) || 0,
+      sound: $('fsound').value || undefined,
+      vibrate: $('fvib').checked || undefined,
+    }, 'Message');
+  });
+  $('ftext').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('free').requestSubmit();
+  });
+
+  $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));
+
+  /* ----- QR smartphone ----- */
+  async function showQr() {
+    const c = $('qrCode').value.trim();
+    if (!/^\d{2}$/.test(c)) { toast('Le code doit faire 2 chiffres.', true); return; }
+    try {
+      const info = await fetch('/api/url/' + c).then((r) => r.json());
+      $('qrImg').src = '/qr/' + c + '?t=' + Date.now();
+      $('qrUrl').textContent = info.url;
+      $('qrBox').hidden = false;
+    } catch (e) {
+      toast('QR indisponible.', true);
+    }
+  }
+  $('qrCode').addEventListener('input', () => { $('qrCode').value = $('qrCode').value.replace(/\D/g, '').slice(0, 2); });
+  $('qrShow').addEventListener('click', showQr);
+  $('qrFree').addEventListener('click', () => {
+    socket.emit('free-code', (res) => {
+      if (res && res.code) { $('qrCode').value = res.code; showQr(); }
+      else toast('Plus aucun code libre.', true);
+    });
+  });
+
+  /* ----- Reprise de session ----- */
+  try {
+    const saved = sessionStorage.getItem('qj-pw');
+    if (saved) connect(saved);
+  } catch (e) { /* rien */ }
+})();
+</script>
+</body>
+</html>

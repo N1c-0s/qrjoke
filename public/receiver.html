@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Appairage</title>
+<style>
+  [hidden] { display: none !important; }
+  html, body {
+    margin: 0; height: 100%; background: #000; color: #fff; overflow: hidden;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* ----- Écran d'appairage (neutre) ----- */
+  #pair {
+    height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 1rem; background: #f4f5f7; color: #222; padding: 1rem; box-sizing: border-box; text-align: center;
+  }
+  #pair h1 { font-size: 1.1rem; font-weight: 600; margin: 0; color: #555; }
+  #form { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+  #code {
+    width: 5.5ch; font-size: 3.5rem; text-align: center; letter-spacing: .15em; padding: .3rem .2rem;
+    border: 2px solid #c4c9d1; border-radius: 12px; background: #fff; color: #111;
+  }
+  #code:focus { outline: none; border-color: #2563eb; }
+  #go {
+    font-size: 1.1rem; padding: .7rem 1.6rem; border: 0; border-radius: 10px;
+    background: #2563eb; color: #fff; cursor: pointer;
+  }
+  #msg { min-height: 1.4em; margin: 0; color: #b91c1c; }
+
+  /* ----- Scène plein écran ----- */
+  #stage {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2vmin; padding: 4vmin; box-sizing: border-box; overflow: hidden; text-align: center;
+    cursor: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  }
+  .big { font-weight: 800; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 96vw; }
+  .dim { opacity: .7; font-weight: 500; }
+  .caret::after { content: "\258C"; margin-left: .05em; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .bar { width: min(70vw, 620px); height: 16px; background: rgba(255,255,255,.18); border-radius: 8px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: #4ade80; }
+
+  .dodge {
+    position: absolute; padding: 1.2rem 2.6rem; font-size: 5vmin; border: 0; border-radius: 14px;
+    background: #2563eb; color: #fff; cursor: pointer; transition: left .12s ease-out, top .12s ease-out;
+  }
+
+  .shake { animation: shake .45s linear infinite; }
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0); }
+    20% { transform: translate(-14px, 8px) rotate(-.6deg); }
+    40% { transform: translate(12px, -10px) rotate(.6deg); }
+    60% { transform: translate(-10px, -6px) rotate(-.4deg); }
+    80% { transform: translate(10px, 10px) rotate(.4deg); }
+  }
+</style>
+</head>
+<body>
+
+<main id="pair">
+  <h1>Appairage</h1>
+  <form id="form" autocomplete="off">
+    <input id="code" inputmode="numeric" pattern="[0-9]{2}" maxlength="2" placeholder="••" aria-label="Code à 2 chiffres">
+    <button id="go" type="submit">Valider</button>
+  </form>
+  <p id="msg" role="status"></p>
+</main>
+
+<div id="stage" hidden></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const pair = $('pair'), form = $('form'), codeEl = $('code'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
+
+  const isMobile =
+    /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+  const kind = isMobile ? 'mobile' : 'pc';
+  const params = new URLSearchParams(location.search);
+  const waitTheme = params.get('wait') === 'white' ? 'white' : 'black';
+
+  // Identifiant stable du navigateur : permet de reprendre son propre code après une coupure.
+  let clientId = '';
+  try {
+    clientId = localStorage.getItem('qj-cid') || '';
+    if (!clientId) {
+      clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('qj-cid', clientId);
+    }
+  } catch (e) {
+    clientId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  }
+
+  let socket = null, joined = false, code = '';
+  let audioCtx = null, wakeLock = null;
+  let clearTimer = null, cancelFns = [];
+
+  /* ----- Appairage : QR (/r/42) ou saisie ----- */
+  const m = location.pathname.match(/^\/r\/(\d{2})\/?$/);
+  if (m) {
+    codeEl.value = m[1];
+    goBtn.textContent = 'Toucher pour continuer';
+  } else {
+    codeEl.focus();
+  }
+  codeEl.addEventListener('input', () => {
+    codeEl.value = codeEl.value.replace(/\D/g, '').slice(0, 2);
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const c = codeEl.value.trim();
+    if (!/^\d{2}$/.test(c)) { msg.textContent = 'Entre 2 chiffres.'; return; }
+    msg.textContent = '';
+    code = c;
+    // Le plein écran exige un geste de l'utilisateur : on le demande ici, tout de suite.
+    enterFullscreen();
+    initAudio();
+    connect();
+  });
+
+  function connect() {
+    if (!socket) {
+      socket = io({ reconnection: true });
+      socket.on('connect', () => { if (code) join(); });
+      socket.on('joke', runJoke);
+      socket.on('kick', () => leave('Session terminée.'));
+    } else if (socket.connected) {
+      join();
+    }
+  }
+
+  function join() {
+    socket.emit('join', { code, clientId, kind }, (res) => {
+      if (res && res.ok) {
+        joined = true;
+        showWaiting();
+        requestWake();
+        reportState();
+      } else {
+        const err = res && res.error;
+        leave(err === 'occupied' ? 'Ce code est déjà utilisé.' : 'Code invalide.');
+      }
+    });
+  }
+
+  function leave(message) {
+    joined = false;
+    code = '';
+    if (socket) { socket.emit('leave'); socket.disconnect(); socket = null; }
+    reset();
+    exitFullscreen();
+    releaseWake();
+    stage.hidden = true;
+    pair.hidden = false;
+    msg.textContent = message || '';
+    codeEl.value = '';
+    if (!m) codeEl.focus();
+  }
+
+  /* ----- Plein écran, écran allumé ----- */
+  const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
+  function enterFullscreen() {
+    const el = document.documentElement;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!fn) return;
+    try { const r = fn.call(el); if (r && r.catch) r.catch(() => {}); } catch (e) { /* iPhone : pas de plein écran, la scène couvre déjà tout */ }
+  }
+  function exitFullscreen() {
+    if (!fsElement()) return;
+    const fn = document.exitFullscreen || document.webkitExitFullscreen;
+    try { const r = fn.call(document); if (r && r.catch) r.catch(() => {}); } catch (e) { /* rien */ }
+  }
+  function isFullscreen() {
+    // Le mode kiosque n'expose pas fullscreenElement : on compare la fenêtre à l'écran.
+    return !!fsElement() || (window.innerWidth >= screen.width - 1 && window.innerHeight >= screen.height - 1);
+  }
+  function reportState() {
+    if (socket && joined) socket.emit('state', { fullscreen: isFullscreen() });
+  }
+  document.addEventListener('fullscreenchange', reportState);
+  document.addEventListener('webkitfullscreenchange', reportState);
+  window.addEventListener('resize', reportState);
+
+  async function requestWake() {
+    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* pas grave */ }
+  }
+  function releaseWake() {
+    try { if (wakeLock) wakeLock.release(); } catch (e) { /* rien */ }
+    wakeLock = null;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && joined) requestWake();
+  });
+
+  /* ----- Sorties de secours : 5 clics dans le coin haut-gauche, ou Échap x3 ----- */
+  let corner = 0, cornerTimer = null;
+  stage.addEventListener('click', (e) => {
+    if (e.clientX > 90 || e.clientY > 90) return;
+    corner += 1;
+    clearTimeout(cornerTimer);
+    cornerTimer = setTimeout(() => { corner = 0; }, 3000);
+    if (corner >= 5) { corner = 0; leave('Déconnecté.'); }
+  });
+  let esc = 0, escTimer = null;
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !joined) return;
+    esc += 1;
+    clearTimeout(escTimer);
+    escTimer = setTimeout(() => { esc = 0; }, 1500);
+    if (esc >= 3) { esc = 0; leave('Déconnecté.'); }
+  });
+
+  /* ----- Sons (WebAudio, aucun fichier) ----- */
+  function initAudio() {
+    try {
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { /* pas de son */ }
+  }
+  function tone(freq, start, dur, type, vol) {
+    if (!audioCtx) return;
+    const t0 = audioCtx.currentTime + start;
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = type || 'square';
+    o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(vol || 0.2, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t0); o.stop(t0 + dur + 0.02);
+  }
+  const SOUNDS = {
+    horn: () => { tone(392, 0, 0.25); tone(392, 0.3, 0.25); tone(523, 0.6, 0.7, 'sawtooth'); },
+    sad: () => { [392, 370, 349, 311].forEach((f, i) => tone(f, i * 0.42, i === 3 ? 0.9 : 0.4, 'sawtooth', 0.18)); },
+    ding: () => tone(1175, 0, 0.9, 'sine', 0.3),
+    boing: () => {
+      if (!audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(180, t0);
+      o.frequency.exponentialRampToValueAtTime(900, t0 + 0.15);
+      o.frequency.exponentialRampToValueAtTime(140, t0 + 0.5);
+      g.gain.setValueAtTime(0.3, t0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.55);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0); o.stop(t0 + 0.6);
+    },
+  };
+  function fx(j) {
+    if (j.sound && SOUNDS[j.sound]) SOUNDS[j.sound]();
+    if (j.vibrate && navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 400]);
+  }
+
+  /* ----- Rendu des blagues (toujours via textContent, jamais innerHTML) ----- */
+  function big(text, size, extra) {
+    const d = document.createElement('div');
+    d.className = 'big' + (extra ? ' ' + extra : '');
+    d.style.fontSize = (size || 8) + 'vmin';
+    d.textContent = text;
+    return d;
+  }
+  function body(j, text) {
+    if (j.emoji) stage.append(big(j.emoji, (j.size || 8) * 1.8));
+    if (text) stage.append(big(text, j.size));
+  }
+
+  function reset() {
+    clearTimeout(clearTimer);
+    cancelFns.forEach((f) => { try { f(); } catch (e) { /* rien */ } });
+    cancelFns = [];
+    stage.className = '';
+    stage.style.transform = '';
+    stage.replaceChildren();
+  }
+
+  function showWaiting() {
+    reset();
+    pair.hidden = true;
+    stage.hidden = false;
+    stage.style.background = waitTheme === 'white' ? '#fff' : '#000';
+    stage.style.color = '#fff';
+    stage.style.cursor = 'none';
+  }
+
+  function confetti(ms) {
+    const cv = document.createElement('canvas');
+    cv.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none';
+    cv.width = window.innerWidth; cv.height = window.innerHeight;
+    stage.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    const colors = ['#f43f5e', '#f59e0b', '#22c55e', '#3b82f6', '#a855f7', '#eab308'];
+    const parts = Array.from({ length: 160 }, () => ({
+      x: Math.random() * cv.width, y: -Math.random() * cv.height,
+      r: 4 + Math.random() * 6, vy: 2 + Math.random() * 4, vx: -1.5 + Math.random() * 3,
+      c: colors[(Math.random() * colors.length) | 0], rot: Math.random() * 6, vr: -0.2 + Math.random() * 0.4,
+    }));
+    const end = performance.now() + ms;
+    let raf = 0;
+    (function frame(now) {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      for (const p of parts) {
+        p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+        if (p.y > cv.height && now < end) { p.y = -10; p.x = Math.random() * cv.width; }
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+        ctx.fillStyle = p.c; ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 1.6);
+        ctx.restore();
+      }
+      if (now < end + 2500) raf = requestAnimationFrame(frame); else cv.remove();
+    })(performance.now());
+    cancelFns.push(() => { cancelAnimationFrame(raf); cv.remove(); });
+  }
+
+  const DEFER_FX = new Set(['countdown', 'loading', 'runaway']); // le son part au moment de la révélation
+
+  const HANDLERS = {
+    text: (j) => body(j, j.text),
+
+    typewriter: (j) => {
+      if (j.emoji) stage.append(big(j.emoji, (j.size || 8) * 1.8));
+      const d = big('', j.size, 'caret');
+      stage.append(d);
+      const chars = Array.from(j.text || '');
+      let i = 0;
+      const iv = setInterval(() => {
+        i += 1;
+        d.textContent = chars.slice(0, i).join('');
+        if (i >= chars.length) { clearInterval(iv); d.classList.remove('caret'); }
+      }, j.speed || 60);
+      cancelFns.push(() => clearInterval(iv));
+    },
+
+    countdown: (j) => {
+      let n = Math.round(j.from || 5);
+      const d = big(String(n), 30);
+      stage.append(d);
+      const iv = setInterval(() => {
+        n -= 1;
+        if (n > 0) { d.textContent = String(n); return; }
+        clearInterval(iv);
+        stage.replaceChildren();
+        fx(j);
+        body(j, j.text || '🎉');
+        if (j.confetti) confetti(4000);
+      }, 1000);
+      cancelFns.push(() => clearInterval(iv));
+    },
+
+    loading: (j) => {
+      const title = big(j.text || 'Chargement…', 5);
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('i'); bar.append(fill);
+      const label = big('', 3, 'dim');
+      stage.append(title, bar, label);
+      const total = (j.seconds || 8) * 1000;
+      const steps = j.steps && j.steps.length ? j.steps : [''];
+      const t0 = performance.now();
+      const iv = setInterval(() => {
+        const t = (performance.now() - t0) / total;
+        if (t >= 1) {
+          clearInterval(iv);
+          stage.replaceChildren();
+          fx(j);
+          body(j, j.final || 'Blague ! 😄');
+          if (j.confetti) confetti(3000);
+          return;
+        }
+        const p = t < 0.8 ? (t / 0.8) * 99 : 99; // reste bloqué à 99 % pour le suspense
+        fill.style.width = p + '%';
+        label.textContent = steps[Math.min(steps.length - 1, Math.floor((p / 100) * steps.length))] + '  ' + Math.floor(p) + '%';
+      }, 100);
+      cancelFns.push(() => clearInterval(iv));
+    },
+
+    runaway: (j) => {
+      stage.style.cursor = 'default';
+      stage.append(big(j.text || 'Clique pour continuer', 5));
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'dodge'; btn.textContent = j.button || 'OK';
+      stage.append(btn);
+      btn.style.left = Math.max(0, (window.innerWidth - btn.offsetWidth) / 2) + 'px';
+      btn.style.top = window.innerHeight * 0.62 + 'px';
+      let dodges = 0;
+      const move = () => {
+        if (dodges >= 12) return;
+        dodges += 1;
+        btn.style.left = Math.random() * Math.max(0, window.innerWidth - btn.offsetWidth - 8) + 'px';
+        btn.style.top = Math.random() * Math.max(0, window.innerHeight - btn.offsetHeight - 8) + 'px';
+      };
+      btn.addEventListener('pointerenter', move);
+      btn.addEventListener('pointerdown', (e) => { if (dodges < 12) { e.preventDefault(); move(); } });
+      btn.addEventListener('click', () => {
+        stage.replaceChildren();
+        fx(j);
+        body(j, j.final || 'Haha, raté ! 😂');
+        if (j.confetti) confetti(3000);
+      });
+    },
+
+    shake: (j) => {
+      body(j, j.text);
+      stage.classList.add('shake');
+      const t = setTimeout(() => stage.classList.remove('shake'), (j.seconds || 4) * 1000);
+      cancelFns.push(() => clearTimeout(t));
+    },
+
+    flip: (j) => {
+      stage.style.transform = 'rotate(180deg)';
+      body(j, j.text || '🙃');
+    },
+
+    confetti: (j) => {
+      body(j, j.text || '🎉');
+      confetti((j.seconds || 5) * 1000);
+    },
+
+    blackout: (j) => {
+      stage.style.background = '#000';
+      stage.style.color = j.fg || '#555';
+      if (j.text) stage.append(big(j.text, j.size || 3, 'dim'));
+    },
+  };
+
+  function runJoke(j) {
+    if (!joined || !j) return;
+    if (j.type === 'clear') { showWaiting(); return; }
+    const handler = HANDLERS[j.type];
+    if (!handler) return;
+    reset();
+    stage.style.background = j.bg || '#000';
+    stage.style.color = j.fg || '#fff';
+    stage.style.cursor = 'none';
+    if (!DEFER_FX.has(j.type)) fx(j);
+    handler(j);
+    if (j.duration > 0) clearTimer = setTimeout(showWaiting, j.duration * 1000);
+  }
+})();
+</script>
+</body>
+</html>
