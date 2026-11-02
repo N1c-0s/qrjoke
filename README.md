@@ -4,6 +4,24 @@ Une blague d'informaticien : un écran (ton PC ou un smartphone) s'appaire avec 
 
 Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle ni le PC ni le téléphone, seulement le contenu de cette page.
 
+## Deux versions
+
+| | Version Netlify (`site/`) | Version locale (`server.js` + `public/`) |
+|---|---|---|
+| Hébergement | Netlify, 100 % statique | Ton PC, sur ton réseau Wi-Fi |
+| Temps réel | Broker MQTT public (`wss://broker.emqx.io:8084/mqtt`) | Serveur Socket.IO |
+| Accès à la régie | Aucun mot de passe | Mot de passe |
+| Marche hors de chez toi | Oui, depuis n'importe quel réseau | Non, même réseau seulement |
+
+### Version Netlify
+- Récepteur : `https://<ton-site>.netlify.app/` (le QR ouvre `/r/42`).
+- Régie : `https://<ton-site>.netlify.app/remote`. Elle affiche le lien du PC, le QR pour les téléphones et les mêmes blagues que la version locale.
+- **Salon** : par défaut `qrjoke-main`. Ajoute `?room=monsalon` aux deux liens pour avoir ton propre salon (mémorisé ensuite par le navigateur), utile si quelqu'un d'autre utilise le même code que toi.
+- **Autre broker** : `?broker=wss://...` (mémorisé aussi).
+- Le broker est public et sans compte : n'importe qui qui connaît le salon et le code pourrait afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
+- Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
+
+### Version locale
 ## Démarrage
 
 ```bash
@@ -98,7 +116,7 @@ Le serveur filtre tous les champs (liste blanche, valeurs bornées) et le récep
 
 ## Tests
 ```bash
-npm test
+npm test   # serveur local (Socket.IO) + protocole MQTT contre un broker local simulé
 ```
 
 ## À faire

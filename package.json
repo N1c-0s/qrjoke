@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node test/mqtt.js"
   },
   "engines": {
     "node": ">=18"
@@ -17,6 +17,8 @@
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
+    "aedes": "^1.2.0",
+    "mqtt": "^5.16.1",
     "socket.io-client": "^4.8.4"
   }
 }
