@@ -162,7 +162,8 @@ async function main() {
     // --- Un code = un écran : un autre navigateur est refusé, l'occupant n'est pas gêné ---
     const nBefore = A.log.kicks.length;
     const intruder = mkReceiver('42', { clientId: 'intrus001' });
-    assert.deepStrictEqual(await intruder.r.start(), { ok: false, error: 'occupied' });
+    assert.deepStrictEqual(await intruder.r.start(), { ok: true }); // démarre sans attendre...
+    await until(() => intruder.log.kicks.includes('occupied'), 4000, '... puis refusé : code occupé');
     assert.strictEqual(A.log.kicks.length, nBefore, "l'occupant ne doit pas être évincé");
     assert.strictEqual(list.filter((x) => x.code === '42').length, 1);
     assert.deepStrictEqual(await remote.send('42', { type: 'text', text: 'toujours là' }), { ok: true, count: 1 });

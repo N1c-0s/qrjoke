@@ -18,7 +18,7 @@
   const ID_RE = /^[a-z0-9]{4,12}$/;
   const CODE_RE = /^\d{2}$/;
   const DEFAULT_ROOM = 'qrjoke-main';
-  const JOIN_WAIT_MS = 1500; // temps laissé à un éventuel occupant pour répondre
+  const JOIN_WAIT_MS = 600; // vérification du code en arrière-plan : l'écran démarre sans attendre
   const ROOM_RE = /^[A-Za-z0-9_-]{1,32}$/;
   const HEARTBEAT_MS = 10000; // un écran signale sa présence toutes les 10 s
   const STALE_MS = 25000; // sans signe de vie depuis 25 s, il disparaît de la régie
@@ -255,16 +255,18 @@
           client.subscribe(subs, { qos: 1 }, async (err) => {
             if (err) return fail('broker');
             if (ended) return undefined;
-            // Le code est-il déjà pris ? On demande à l'éventuel occupant de se signaler.
+            // L'écran démarre tout de suite (aucune attente pour l'utilisateur) ; en arrière-plan,
+            // on demande à l'éventuel occupant du code de se signaler avant de s'annoncer à la régie.
+            clearTimeout(failTimer);
+            settle({ ok: true });
             await publish(T.ctl(code), { type: 'who', from: inst }, 0);
             await new Promise((r) => setTimeout(r, joinWaitMs));
             if (ended) return undefined;
-            if (occupied) { settle({ ok: false, error: 'occupied' }); stop(); return undefined; }
+            if (occupied) { stop(); onKick('occupied'); return undefined; }
             joined = true;
-            clearTimeout(failTimer);
             sendPresence();
             hb = setInterval(sendPresence, heartbeatMs);
-            return settle({ ok: true });
+            return undefined;
           });
         });
       });

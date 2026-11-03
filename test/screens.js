@@ -175,10 +175,12 @@ async function main() {
       assert.strictEqual(codeInput.value, code, 'le code du lien doit pré-remplir le champ');
     }
     document.getElementById('form').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
-    await until(() => !stage.hidden, 6000, 'récepteur démarré');
+    const t0 = Date.now();
+    await until(() => !stage.hidden, 3000, 'récepteur démarré');
+    assert(Date.now() - t0 < 1000, "l'écran doit démarrer sans attendre");
     const id = dom.window.localStorage.getItem('qj-id');
     assert(/^[a-z0-9]{8}$/.test(id), 'identifiant du navigateur absent');
-    assert(published.some((p) => p.topic === `qrjoke/qrjoke-main/${code}/presence`), 'présence non publiée');
+    await until(() => published.some((p) => p.topic === `qrjoke/qrjoke-main/${code}/presence`), 3000, 'présence publiée');
     handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
     return { dom, stage, document, handlers, id, code };
   }

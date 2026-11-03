@@ -161,7 +161,7 @@
     starting = false;
     goBtn.disabled = false;
     if (res.ok) {
-      joined = true;
+      joined = true; // l'écran d'attente apparaît tout de suite ; un code déjà pris est signalé aussitôt après (onKick)
       showWaiting();
       requestWake();
       reportState();

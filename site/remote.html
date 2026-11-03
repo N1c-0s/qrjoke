@@ -260,8 +260,8 @@
   });
   remote.connect().then((res) => {
     if (!res.ok) { setStatus('Broker injoignable', false); return; }
-    // Les écrans se signalent en 1 à 2 s : on propose ensuite un code libre.
-    setTimeout(() => { if (!codeEl.value) pickFreeCode(); }, 1800);
+    // Les écrans se signalent en moins d'une seconde : on propose ensuite un code libre.
+    setTimeout(() => { if (!codeEl.value) pickFreeCode(); }, 600);
   });
 
   /* ----- Écrans connectés ----- */
