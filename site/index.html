@@ -54,6 +54,15 @@
     background: #2563eb; color: #fff; cursor: pointer; transition: left .12s ease-out, top .12s ease-out;
   }
 
+  #avConsent { position: fixed; right: 12px; bottom: 12px; z-index: 999999; max-width: min(420px, calc(100vw - 24px)); box-sizing: border-box; background: #121a2bf5; color: #f1f5f9; border: 1px solid #f04461; border-radius: 12px; padding: 12px; font-size: 13px; box-shadow: 0 8px 28px #0008; cursor: default; text-align: left; }
+  #avConsentTitle { font-weight: 750; margin-bottom: 5px; }
+  #avConsentInfo { color: #cbd5e1; font-size: 12px; line-height: 1.4; }
+  .av-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+  .av-actions button { border: 1px solid #6b7280; border-radius: 7px; background: #273349; color: #fff; padding: 8px; cursor: pointer; font: inherit; }
+  #avAllow { background: #d72e4c; border-color: #d72e4c; }
+  #avStop { background: #b91c1c; }
+  #avState { font-size: 12px; margin-top: 6px; color: #fda4af; }
+
   .shake { animation: shake .45s linear infinite; }
   @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -79,6 +88,17 @@
 </main>
 
 <div id="stage" hidden></div>
+
+<div id="avConsent" hidden aria-live="polite">
+  <div id="avConsentTitle">📷🎤 Partage pendant cette session</div>
+  <div id="avConsentInfo">Autorise les demandes caméra/micro sans nouvelle confirmation QrJoke, jusqu'à révocation ou fin de session. Le navigateur conserve ses propres permissions.</div>
+  <div class="av-actions">
+    <button id="avAllow" type="button">Activer pour cette session</button>
+    <button id="avRevoke" type="button" hidden>Révoquer</button>
+    <button id="avStop" type="button" hidden>■ Couper la diffusion</button>
+  </div>
+  <div id="avState" role="status"></div>
+</div>
 
 <script src="/vendor/mqtt.min.js"></script>
 <script src="/core.js"></script>
@@ -132,6 +152,49 @@
 
   let rx = null, joined = false, starting = false;
   let camera = null, microphone = null;
+
+  /* ----- Préautorisation caméra/micro "pendant cette session" (facultative, jamais sauvegardée) -----
+   * Clic explicite de LA PERSONNE SUR L'ÉCRAN (jamais depuis la régie) : déclenche la demande native
+   * du navigateur pour caméra+micro, puis relâche tout de suite les pistes (rien ne démarre ici).
+   * Tant que c'est actif, une demande caméra/micro de la régie démarre directement, sans repasser par
+   * l'écran de confirmation QrJoke — mais un indicateur "diffusion active" reste visible avec un bouton
+   * Couper, et Révoquer annule la préautorisation à tout moment. Rien n'est sauvegardé ni ne survit à
+   * un rechargement ou à la sortie de session. */
+  let avSessionConsent = false;
+  let avStreaming = false;
+  const avBox = $('avConsent'), avAllow = $('avAllow'), avRevoke = $('avRevoke'), avStop = $('avStop'), avState = $('avState');
+  const avInfo = $('avConsentInfo');
+  const avDefaultInfo = avInfo.textContent;
+  function refreshAV() {
+    avBox.hidden = !joined;
+    avAllow.hidden = avSessionConsent;
+    avRevoke.hidden = !avSessionConsent;
+    avStop.hidden = !avStreaming;
+    avInfo.textContent = avStreaming ? '🔴 Caméra ou microphone en cours de diffusion. Tu peux couper immédiatement.' : avDefaultInfo;
+    avState.textContent = avStreaming ? '● DIFFUSION ACTIVE' : (avSessionConsent ? '● Préautorisation active jusqu’à la fin de la session' : 'Partage non préautorisé');
+  }
+  function stopAV() {
+    if (camera) camera.stop();
+    if (microphone) microphone.stop();
+    avStreaming = false;
+    refreshAV();
+  }
+  avStop.onclick = stopAV;
+  avRevoke.onclick = () => { avSessionConsent = false; stopAV(); };
+  avAllow.onclick = async () => {
+    avAllow.disabled = true;
+    try {
+      // Ce clic explicite déclenche la demande native des deux permissions ; les pistes sont
+      // immédiatement relâchées, rien n'est diffusé à cette étape.
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      if (joined) { avSessionConsent = true; refreshAV(); }
+    } catch (e) {
+      avState.textContent = 'Autorisation refusée ou matériel indisponible : ' + e.message;
+    } finally {
+      avAllow.disabled = false;
+    }
+  };
   let activeChat = null; // { append(text), end() } : piège dialogue en mode chat actuellement affiché
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
@@ -170,12 +233,13 @@
     if (res.ok) {
       joined = true; // l'écran d'attente apparaît tout de suite ; un code déjà pris est signalé aussitôt après (onKick)
       camera = QrJokeCamera.create(room, brokerUrl, code, 'receiver', text => { const e = document.getElementById('cameraStatus'); if (e) e.textContent = text; });
-      camera.setHandler((m) => camera.handleReceiver(m));
+      camera.setHandler(async (m) => { await camera.handleReceiver(m); if (m.kind === 'stop') { avStreaming = false; refreshAV(); } });
       microphone = QrJokeAudio.create(room, brokerUrl, code, 'receiver', text => { const e = document.getElementById('microStatus'); if (e) e.textContent = text; });
-      microphone.setHandler((m) => microphone.handleReceiver(m));
+      microphone.setHandler(async (m) => { await microphone.handleReceiver(m); if (m.kind === 'stop') { avStreaming = false; refreshAV(); } });
       showWaiting();
       requestWake();
       reportState();
+      refreshAV();
     } else {
       leave(res.error === 'occupied' ? 'Ce code est déjà utilisé.' : 'Broker injoignable, réessaie.');
     }
@@ -190,6 +254,9 @@
 
   function leave(message) {
     joined = false;
+    avSessionConsent = false;
+    avStreaming = false;
+    refreshAV();
     const r = rx;
     rx = null;
     if (r) r.leave();
@@ -204,7 +271,7 @@
     msg.textContent = message || '';
     (pathCode ? goBtn : codeInput).focus();
   }
-  window.addEventListener('pagehide', () => { if (camera) camera.destroy(); if (microphone) microphone.destroy(); if (rx) rx.leave(); });
+  window.addEventListener('pagehide', () => { avSessionConsent = false; if (camera) camera.destroy(); if (microphone) microphone.destroy(); if (rx) rx.leave(); });
 
   /* ----- Plein écran, écran allumé ----- */
   const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
@@ -331,6 +398,7 @@
   function clearStage() {
     if (camera) camera.stop();
     if (microphone) microphone.stop();
+    if (avStreaming) { avStreaming = false; refreshAV(); }
     if (window.QrJokeV3) { window.QrJokeV3.stop(); window.QrJokeV3.chaos(stage, { action: 'stop' }); }
     cancelFns.forEach((f) => { try { f(); } catch (e) { /* rien */ } });
     cancelFns = [];
@@ -600,8 +668,8 @@
       // Pas de chat en cours (déjà terminé/changé d'écran) : rien à faire.
       return;
     }
-    if (j.type === 'camera') { showCameraRequest(); return; }
-    if (j.type === 'microphone') { showMicroRequest(); return; }
+    if (j.type === 'camera') { if (avSessionConsent) startPreauthorizedAV('camera'); else showCameraRequest(); return; }
+    if (j.type === 'microphone') { if (avSessionConsent) startPreauthorizedAV('microphone'); else showMicroRequest(); return; }
     if (j.type === 'v3sound') { if (window.QrJokeV3) window.QrJokeV3.playSound(j.sound); return; }
     if (j.type === 'v3chaos') { if (window.QrJokeV3) window.QrJokeV3.chaos(stage, j); return; }
     if (j.type === 'prank' || j.type === 'custom') {
@@ -618,6 +686,27 @@
       return;
     }
     runJoke(j);
+  }
+
+  /** N'est appelée que si la personne a déjà cliqué "Activer pour cette session" sur SON écran
+   *  (jamais depuis la régie) : démarre directement la connexion WebRTC, sans repasser par l'écran
+   *  de confirmation. L'indicateur "diffusion active" + le bouton Couper restent visibles en
+   *  permanence (panneau avConsent), donc rien n'est silencieux. */
+  async function startPreauthorizedAV(kind) {
+    if (!joined || !avSessionConsent) return;
+    stopAV();
+    avStreaming = true;
+    refreshAV();
+    const preview = document.createElement(kind === 'camera' ? 'video' : 'audio');
+    preview.autoplay = true; preview.muted = true; preview.playsInline = true;
+    try {
+      if (kind === 'camera') await camera.receiverOffer(preview);
+      else await microphone.receiverOffer(preview);
+    } catch (e) {
+      avStreaming = false;
+      refreshAV();
+      avState.textContent = 'Partage impossible : ' + e.message;
+    }
   }
 
   /** Demande explicite d'accès caméra : la victime voit clairement ce qui se passe et doit
@@ -640,9 +729,10 @@
     for (const b of [accept, stop]) b.style.cssText = 'padding:14px 20px;border-radius:12px;cursor:pointer;font:inherit;';
     accept.onclick = async () => {
       accept.disabled = true;
-      try { await camera.receiverOffer(video); } catch (e) { status.textContent = 'Caméra non disponible : ' + e.message; accept.disabled = false; }
+      try { avStreaming = true; refreshAV(); await camera.receiverOffer(video); }
+      catch (e) { avStreaming = false; refreshAV(); status.textContent = 'Caméra non disponible : ' + e.message; accept.disabled = false; }
     };
-    stop.onclick = () => { camera.stop(); showWaiting(); };
+    stop.onclick = () => { stopAV(); showWaiting(); };
     stage.append(title, description, video, status, accept, stop);
   }
 
@@ -663,9 +753,10 @@
     for (const b of [accept, stop]) b.style.cssText = 'padding:14px 20px;border-radius:12px;cursor:pointer;font:inherit;';
     accept.onclick = async () => {
       accept.disabled = true;
-      try { await microphone.receiverOffer(preview); } catch (e) { status.textContent = 'Micro non disponible : ' + e.message; accept.disabled = false; }
+      try { avStreaming = true; refreshAV(); await microphone.receiverOffer(preview); }
+      catch (e) { avStreaming = false; refreshAV(); status.textContent = 'Micro non disponible : ' + e.message; accept.disabled = false; }
     };
-    stop.onclick = () => { microphone.stop(); showWaiting(); };
+    stop.onclick = () => { stopAV(); showWaiting(); };
     stage.append(title, description, status, accept, stop);
   }
 
