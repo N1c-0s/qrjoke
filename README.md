@@ -16,7 +16,7 @@ Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle 
 
 ### Version Netlify (codes à 2 chiffres)
 1. Ouvre la **régie** : `https://<ton-site>.netlify.app/remote`. Section **Appairer un écran** : elle propose un code libre (ex. `42`), ou tape le tien. Elle affiche le lien, un bouton Copier, la commande kiosque et le QR.
-   - **Message d'accroche** (champ sous le code) : remplace l'écran "Code / Démarrer" de la cible par un seul gros bouton au texte de ton choix (ex. « 🎁 Surprise ici, appuie pour voir »), déjà glissé dans le lien généré (`?lure=...`). Plus naturel à cliquer qu'un formulaire — le clic déclenche exactement le même démarrage (plein écran + appairage). Vide le champ pour revenir au formulaire classique.
+   - **Message d'accroche** (champ sous le code) : remplace l'écran "Code / Démarrer" de la cible par un seul gros bouton au texte de ton choix (ex. « 🔮 Quel est ton profil secret ? »), déjà glissé dans le lien généré (`?lure=...`). Plus naturel à cliquer qu'un formulaire — le clic déclenche exactement le même démarrage (plein écran + appairage). Vide le champ pour revenir au formulaire classique.
 2. **PC** : va sur `https://<ton-site>.netlify.app/42` (ou ouvre la page, tape `42`), puis **Démarrer** / Entrée : plein écran, écran d'attente noir. Mode kiosque sans geste : `chrome.exe --kiosk "https://<ton-site>.netlify.app/42?auto=1"`.
 3. **Smartphone** : scanne le QR (c'est le même lien `/42`), puis un tap sur **Démarrer**.
 4. L'écran apparaît dans la régie (« Code 42 · PC · Chrome · plein écran ✅ »). Un seul écran : sélectionné d'office. Plusieurs : « Tous les écrans » par défaut, ou choisis-en un.

@@ -107,7 +107,7 @@
     </div>
     <div class="row" style="margin-top:8px">
       <label class="dim" style="flex:1;min-width:220px">Message d'accroche sur l'écran (remplace « Démarrer » par un bouton plus tentant)
-        <input id="pairLure" maxlength="60" placeholder="🎁 Surprise ici, appuie pour voir" style="width:100%;margin-top:4px">
+        <input id="pairLure" maxlength="60" placeholder="🔮 Quel est ton profil secret ?" style="width:100%;margin-top:4px">
       </label>
     </div>
     <div class="row" style="margin-top:8px">
@@ -544,7 +544,7 @@
   /* ----- Code, lien, QR et salon ----- */
   const codeEl = $('pairCode');
   const lureEl = $('pairLure');
-  const DEFAULT_LURE = '🎁 Surprise ici, appuie pour voir';
+  const DEFAULT_LURE = '🔮 Quel est ton profil secret ?';
   lureEl.value = store.get('qj-lure') || DEFAULT_LURE;
   function withLure(url) {
     const lure = lureEl.value.trim().slice(0, 60);
