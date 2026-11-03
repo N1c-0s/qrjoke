@@ -321,6 +321,27 @@ async function main() {
     await until(() => stage.textContent.includes('Piégé !'), 3000, 'trapEnd révèle la blague finale');
   }
 
+  // Fausse mise à jour interminable : la barre avance (et parfois redescend), mais ne finit jamais seule
+  {
+    const { stage, handlers, code } = await runReceiver('windows', { type: 'update' });
+    await until(() => stage.querySelector('.bar'), 3000, 'barre de progression affichée');
+    const fill = stage.querySelector('.bar > i');
+    const widths = new Set();
+    for (let i = 0; i < 8; i += 1) {
+      await wait(460);
+      widths.add(fill.style.width);
+    }
+    assert(widths.size > 1, 'la progression doit varier dans le temps (avancer et/ou redescendre)');
+    assert(stage.querySelector('.bar'), "la mise à jour ne doit jamais se terminer d'elle-même");
+    assert(!stage.textContent.includes('100'), 'ne doit jamais atteindre 100 %');
+
+    // Seule une révélation manuelle de la régie y met fin
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    deliver({ type: 'text', text: 'Gotcha !', confetti: true });
+    await until(() => stage.textContent.includes('Gotcha !'), 3000, 'la révélation manuelle remplace la fausse mise à jour');
+    assert(!stage.querySelector('.bar'), 'la barre doit avoir disparu après la révélation');
+  }
+
   // Après un écran d'erreur, "clear" puis une blague normale : plus aucun style de l'écran d'erreur ne reste
   {
     const { dom, stage, handlers, code } = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 30 });

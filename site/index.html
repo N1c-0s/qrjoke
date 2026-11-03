@@ -436,6 +436,34 @@
       cancelFns.push(() => clearInterval(iv));
     },
 
+    // Fausse mise à jour "interminable" : la barre avance... et redescend parfois d'un coup.
+    // Ne se termine jamais seule : c'est la régie qui révèle (bouton dédié).
+    update: (j) => {
+      stage.style.background = '#0078d4';
+      stage.style.color = '#fff';
+      stage.style.cursor = 'none';
+      stage.style.fontFamily = '"Segoe UI","Segoe UI Variable",system-ui,sans-serif';
+      const pct = big('0 %', 7);
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const fill = document.createElement('i'); bar.append(fill);
+      const sub = big(j.text || "Mise à jour de Windows en cours. Ne pas éteindre votre ordinateur.", 3, 'dim');
+      stage.append(pct, bar, sub);
+      const steps = j.steps && j.steps.length ? j.steps : null;
+      let p = 1;
+      const iv = setInterval(() => {
+        if (Math.random() < 0.1 && p > 12) {
+          p -= 6 + Math.random() * 22; // redescend d'un coup, façon "annulation des modifications"
+        } else {
+          p += Math.random() * 2.2;
+        }
+        p = Math.max(1, Math.min(97, p)); // jamais 0, jamais fini
+        fill.style.width = p + '%';
+        const stepTxt = steps ? steps[Math.min(steps.length - 1, Math.floor((p / 100) * steps.length))] + '  ' : '';
+        pct.textContent = stepTxt + Math.floor(p) + ' %';
+      }, 450);
+      cancelFns.push(() => clearInterval(iv));
+    },
+
     runaway: (j) => {
       stage.style.cursor = 'default';
       stage.append(big(j.text || 'Clique pour continuer', 5));

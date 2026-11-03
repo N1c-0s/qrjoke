@@ -59,7 +59,7 @@
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
     'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'voice', 'clear',
-    'trapReply', 'trapEnd',
+    'trapReply', 'trapEnd', 'update',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick', 'type']);

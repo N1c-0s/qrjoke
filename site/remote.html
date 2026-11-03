@@ -118,6 +118,16 @@
   </section>
 
   <section>
+    <h2>Fausse mise à jour interminable</h2>
+    <div class="row">
+      <input id="updFinal" maxlength="120" placeholder="Message de révélation (facultatif)" aria-label="Message de révélation" style="flex:1;min-width:200px">
+      <button id="updGo" class="primary" type="button">Lancer</button>
+      <button id="updReveal" type="button" disabled>Révéler</button>
+    </div>
+    <p class="dim" style="margin:8px 0 0">Barre de progression façon Windows Update qui avance... et redescend parfois d'un coup. Ne se termine jamais seule : clique sur "Révéler" quand tu veux arrêter le supplice.</p>
+  </section>
+
+  <section>
     <h2>Photo</h2>
     <div class="row">
       <input id="photoFile" type="file" accept="image/*" aria-label="Choisir une photo">
@@ -733,6 +743,16 @@
     chatActive = false;
     $('chatReplyRow').hidden = true;
     send({ type: 'clear' }, 'Écran d\'attente');
+  });
+
+  $('updGo').addEventListener('click', () => {
+    send({ type: 'update' }, 'Fausse mise à jour');
+    $('updReveal').disabled = false;
+  });
+  $('updReveal').addEventListener('click', () => {
+    const final = $('updFinal').value.trim();
+    send({ type: 'text', text: final || 'En fait non, tout va bien 😈', confetti: true }, 'Révélation');
+    $('updReveal').disabled = true;
   });
 })();
 </script>
