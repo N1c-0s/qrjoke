@@ -182,7 +182,7 @@ async function main() {
     assert(/^[a-z0-9]{8}$/.test(id), 'identifiant du navigateur absent');
     await until(() => published.some((p) => p.topic === `qrjoke/qrjoke-main/${code}/presence`), 3000, 'présence publiée');
     handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
-    return { dom, stage, document, handlers, id, code };
+    return { dom, stage, document, handlers, id, code, published };
   }
 
   // Auto : chaque système reçoit son propre écran
@@ -271,6 +271,30 @@ async function main() {
     assert(!stage.textContent.includes('Gagné !'), 'les 3 premiers clics ne doivent pas valider');
     btn.dispatchEvent(new (stage.ownerDocument.defaultView).Event('click'));
     await until(() => stage.textContent.includes('Gagné !'), 3000, 'piège fakeclick : le 4e clic valide');
+  }
+  {
+    // Fausse boite de dialogue : refuse 3 fois, valide à la 4e, et renvoie chaque saisie à la régie (topic reply)
+    const { stage, published, code } = await runReceiver('windows', {
+      type: 'trap', trap: 'type', text: 'Entrez le code reçu par SMS', placeholder: 'Code SMS', final: 'Gagné !',
+    });
+    await until(() => stage.textContent.includes('Entrez le code reçu par SMS'), 3000, 'piège type affiché');
+    const input = stage.querySelector('input');
+    const btn = stage.querySelector('button');
+    assert(input, 'champ de saisie absent');
+    assert(btn, 'bouton du piège absent');
+    const win = stage.ownerDocument.defaultView;
+    for (let i = 0; i < 3; i += 1) {
+      input.value = 'essai' + i;
+      btn.dispatchEvent(new win.Event('click'));
+    }
+    await wait(50);
+    assert(!stage.textContent.includes('Gagné !'), 'les 3 premières saisies ne doivent pas valider');
+    input.value = 'dernier';
+    btn.dispatchEvent(new win.Event('click'));
+    await until(() => stage.textContent.includes('Gagné !'), 3000, 'piège type : la 4e saisie valide');
+    const replies = published.filter((p) => p.topic === `qrjoke/qrjoke-main/${code}/reply`).map((p) => JSON.parse(p.msg));
+    assert.strictEqual(replies.length, 4, 'chaque saisie doit être renvoyée à la régie');
+    assert.deepStrictEqual(replies.map((r) => r.text), ['essai0', 'essai1', 'essai2', 'dernier']);
   }
 
   // Après un écran d'erreur, "clear" puis une blague normale : plus aucun style de l'écran d'erreur ne reste

@@ -498,8 +498,9 @@
       stage.style.cursor = 'default';
       const os = Core.resolveOS(j.os, detectedOS);
       window.QrJokeScreens.renderTrap(j.trap, os, {
-        stage, text: j.text, button: j.button, button2: j.button2,
+        stage, text: j.text, button: j.button, button2: j.button2, placeholder: j.placeholder,
         cancel: (f) => cancelFns.push(f),
+        onReply: (text) => { if (rx) rx.sendReply(text); },
         done: () => {
           clearStage();
           fx(j);

@@ -151,6 +151,7 @@
         <option value="shrink">Bouton qui rétrécit</option>
         <option value="swap">OK / Annuler qui échangent de place</option>
         <option value="fakeclick">Faux clic (ne compte pas les premières fois)</option>
+        <option value="type">Fausse boite de dialogue (lui fait taper un code)</option>
       </select>
       <select id="trapOs" aria-label="Système">
         <option value="auto">Auto : style de chaque écran</option>
@@ -168,6 +169,13 @@
     <div class="row" style="margin-top:8px">
       <input id="trapFinal" maxlength="120" placeholder="Message de fin (facultatif)" aria-label="Message de fin" style="flex:1;min-width:200px">
       <button id="trapGo" class="primary" type="button">Lancer</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="trapPlaceholder" maxlength="80" placeholder="Champ (dialogue) : ex. « Code de vérification »" aria-label="Texte du champ" style="flex:1;min-width:200px">
+    </div>
+    <div id="dialogueLog" style="margin-top:10px" hidden>
+      <p class="dim" style="margin:0 0 4px">Ce qu'il/elle tape dans la boite de dialogue, en direct :</p>
+      <div id="dialogueLines" style="max-height:140px;overflow:auto;font:13px monospace;background:#111;color:#0f0;padding:8px;border-radius:6px;"></div>
     </div>
   </section>
 
@@ -314,6 +322,15 @@
         scenSeen.add(r.code);
         if (scenAuto.checked && scenario.length) runScenario(r.code);
       }
+    },
+    onReply: (code, text) => {
+      $('dialogueLog').hidden = false;
+      const line = document.createElement('div');
+      const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      line.textContent = `[${t}] Code ${code} : ${text || '(vide)'}`;
+      const box = $('dialogueLines');
+      box.appendChild(line);
+      box.scrollTop = box.scrollHeight;
     },
     onStatus: (s) => {
       if (s === 'connected') setStatus('Connecté', true);
@@ -671,7 +688,9 @@
       button: $('trapOk').value.trim() || undefined,
       button2: $('trapCancel').value.trim() || undefined,
       final: $('trapFinal').value.trim() || undefined,
+      placeholder: $('trapPlaceholder').value.trim() || undefined,
     }, 'Piège');
+    if ($('trapKind').value === 'type') $('dialogueLog').hidden = false;
   });
 
   $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));

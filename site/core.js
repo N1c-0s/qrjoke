@@ -61,7 +61,7 @@
     'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'voice', 'clear',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
-  const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick']);
+  const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick', 'type']);
   const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing', 'alarm']);
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
   const num = (v, min, max) => {
@@ -134,6 +134,8 @@
     ctl: (id) => `qrjoke/${room}/${id}/ctl`,
     presence: (id) => `qrjoke/${room}/${id}/presence`,
     presenceAll: `qrjoke/${room}/+/presence`,
+    reply: (id) => `qrjoke/${room}/${id}/reply`,
+    replyAll: `qrjoke/${room}/+/reply`,
   });
 
   const roomQuery = (room) => (room && room !== DEFAULT_ROOM ? `?room=${room}` : '');
@@ -288,6 +290,11 @@
         const next = !!v;
         if (next !== fullscreen) { fullscreen = next; sendPresence(); }
       },
+      /** Envoie à la régie ce qui a été tapé dans un piège "dialogue" (texte brut, borné). */
+      async sendReply(text) {
+        if (!joined || ended) return;
+        await publish(T.reply(code), { type: 'reply', from: inst, text: str(text, 300) || '' }, 0);
+      },
       get joined() { return joined; },
     };
   }
@@ -301,6 +308,7 @@
     const brokerUrl = opts.brokerUrl || DEFAULT_BROKER;
     const staleMs = opts.staleMs || STALE_MS;
     const onReceivers = opts.onReceivers || noop;
+    const onReply = opts.onReply || noop; // (code, text) => void : réponse tapée dans un piège "dialogue"
     const onStatus = opts.onStatus || noop;
 
     const T = topics(room);
@@ -354,7 +362,7 @@
           client.on('reconnect', () => onStatus('reconnecting'));
           client.on('connect', () => {
             onStatus('connected');
-            client.subscribe(T.presenceAll, { qos: 1 }, (err) => {
+            client.subscribe([T.presenceAll, T.replyAll], { qos: 1 }, (err) => {
               if (err) return;
               publish(T.ctl('all'), { type: 'who', from: inst }); // tous les écrans répondent
               clearTimeout(failTimer);
@@ -364,9 +372,14 @@
           client.on('message', (topic, payload) => {
             if (!topic.startsWith(prefix)) return;
             const parts = topic.slice(prefix.length).split('/');
-            if (parts.length !== 2 || parts[1] !== 'presence' || !CODE_RE.test(parts[0])) return;
+            if (parts.length !== 2 || !CODE_RE.test(parts[0])) return;
             const data = unpack(payload.toString());
             if (!data) return;
+            if (parts[1] === 'reply') {
+              if (data.type === 'reply' && typeof data.text === 'string') onReply(parts[0], data.text.slice(0, 300));
+              return;
+            }
+            if (parts[1] !== 'presence') return;
             if (data.type === 'bye') peers.delete(parts[0]);
             else if (data.type === 'presence') peers.set(parts[0], { data, rx: Date.now() });
             else return;

@@ -336,6 +336,47 @@
       return;
     }
 
+    if (kind === 'type') {
+      // Fausse boite de dialogue : demande de taper quelque chose, le refuse plusieurs fois
+      // (comme si c'était "faux"/"invalide"), et renvoie chaque saisie à la régie en direct.
+      const REJECT = ['Code invalide, réessaie.', 'Toujours pas bon…', 'Format incorrect.', 'Dernière tentative…'];
+      const input = c.doc.createElement('input');
+      input.type = 'text';
+      input.placeholder = ctx.placeholder || 'Entrez la valeur demandée';
+      input.autocomplete = 'off';
+      input.style.cssText = stacked
+        ? 'font:16px -apple-system,sans-serif;padding:11px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;width:100%;box-sizing:border-box;margin-bottom:2vmin;'
+        : 'font:15px system-ui,sans-serif;padding:8px 12px;border-radius:4px;border:1px solid #999;min-width:220px;';
+      const err = c.el('div', 'font:13px system-ui,sans-serif;color:#ff6b6b;min-height:2.6em;max-width:80vw;text-align:center;margin-top:1.5vmin;');
+      const ok = mk(c.doc, okLabel, true);
+
+      if (stacked) {
+        box.append(input, ok); // iOS : champ puis bouton, empilés
+      } else {
+        box.append(input, ok);
+      }
+      c.stage.append(err);
+
+      let tries = 0;
+      const submit = () => {
+        const val = String(input.value || '').slice(0, 300);
+        if (typeof ctx.onReply === 'function') ctx.onReply(val);
+        tries += 1;
+        if (tries < 4) {
+          err.textContent = REJECT[Math.min(tries - 1, REJECT.length - 1)];
+          input.value = '';
+          input.focus();
+          return;
+        }
+        c.finish();
+      };
+      ok.addEventListener('click', submit);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+      setTimeout(() => input.focus(), 50);
+      c.cancel(() => {});
+      return;
+    }
+
     // fakeclick : le bouton réagit (s'enfonce) mais ne valide rien les premières fois
     const PHRASES = ['Presque…', 'Toujours pas ?', 'Encore un petit effort…', 'Bon, d\'accord.'];
     const ok = mk(c.doc, okLabel, true);

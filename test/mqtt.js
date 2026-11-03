@@ -217,6 +217,24 @@ async function main() {
     assert.strictEqual(short.receivers().length, 0, 'un écran sans battement doit disparaître');
     ghost.end(true);
 
+    // --- Canal de réponse (piège "dialogue") : l'écran renvoie à la régie ce qui a été tapé ---
+    const replies = [];
+    const remote2 = core.createRemote({ ...fast, onReply: (code, text) => replies.push({ code, text }) });
+    cleanup.push(() => remote2.end());
+    assert.deepStrictEqual(await remote2.connect(), { ok: true });
+    const D = mkReceiver('33', { clientId: 'dddd3333' });
+    assert.deepStrictEqual(await D.r.start(), { ok: true });
+    await until(() => D.r.joined, 4000, 'D a rejoint');
+    await D.r.sendReply('1234');
+    await until(() => replies.length === 1, 4000, 'régie reçoit la réponse tapée');
+    assert.strictEqual(replies[0].code, '33');
+    assert.strictEqual(replies[0].text, '1234');
+    // Texte trop long : coupé à 300 caractères, pas planté
+    await D.r.sendReply('x'.repeat(500));
+    await until(() => replies.length === 2, 4000, 'régie reçoit la 2e réponse');
+    assert.strictEqual(replies[1].text.length, 300);
+    await D.r.leave();
+
     console.log('OK : protocole MQTT validé');
   } finally {
     for (const f of cleanup) { try { await f(); } catch (e) { /* rien */ } }
