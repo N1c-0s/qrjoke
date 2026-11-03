@@ -62,7 +62,7 @@
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick']);
-  const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing']);
+  const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing', 'alarm']);
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
   const num = (v, min, max) => {
     const n = Number(v);

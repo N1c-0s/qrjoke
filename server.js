@@ -78,7 +78,7 @@ const JOKE_TYPES = new Set([
   'text', 'typewriter', 'countdown', 'loading', 'runaway',
   'shake', 'flip', 'confetti', 'blackout', 'clear',
 ]);
-const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing']);
+const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing', 'alarm']);
 
 const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
 const num = (v, min, max) => {

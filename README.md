@@ -102,7 +102,7 @@ Types : `text`, `typewriter`, `countdown`, `loading`, `runaway`, `shake`, `flip`
 | `emoji`, `bg`, `fg` | Emoji, fond et couleur du texte. |
 | `size` | Taille du texte en vmin (1 à 40). |
 | `duration` | Retour automatique à l'attente après N secondes (0 = reste affiché). |
-| `sound` | `horn`, `sad`, `ding`, `boing`. |
+| `sound` | `horn`, `sad`, `ding`, `boing`, `alarm`. |
 | `vibrate`, `confetti` | Booléens. |
 
 Le serveur filtre tous les champs (liste blanche, valeurs bornées) et le récepteur n'utilise jamais `innerHTML`.

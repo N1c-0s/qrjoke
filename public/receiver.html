@@ -257,6 +257,21 @@
       o.connect(g); g.connect(audioCtx.destination);
       o.start(t0); o.stop(t0 + 0.6);
     },
+    alarm: () => {
+      if (!audioCtx) return;
+      const t0 = audioCtx.currentTime;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'sawtooth';
+      g.gain.setValueAtTime(0.22, t0);
+      // va-et-vient aigu/grave façon sirène, pendant 4 s
+      for (let i = 0; i < 8; i += 1) {
+        o.frequency.setValueAtTime(i % 2 === 0 ? 900 : 500, t0 + i * 0.5);
+      }
+      g.gain.setValueAtTime(0.22, t0 + 4);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 4.3);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(t0); o.stop(t0 + 4.3);
+    },
   };
   function fx(j) {
     if (j.sound && SOUNDS[j.sound]) SOUNDS[j.sound]();
