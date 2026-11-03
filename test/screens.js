@@ -132,23 +132,31 @@ async function main() {
   /* ---------- Le vrai récepteur (index.html) avec un faux MQTT ---------- */
   const coreSrc = fs.readFileSync(path.join(SITE, 'core.js'), 'utf8');
   const screensSrc = fs.readFileSync(path.join(SITE, 'screens.js'), 'utf8');
+  const cameraSrc = fs.readFileSync(path.join(SITE, 'camera.js'), 'utf8');
   const indexHtml = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8')
     .replace('<script src="/vendor/mqtt.min.js"></script>', '')
     .replace('<script src="/core.js"></script>', () => `<script>${coreSrc}</script>`)
-    .replace('<script src="/screens.js"></script>', () => `<script>${screensSrc}</script>`);
+    .replace('<script src="/screens.js"></script>', () => `<script>${screensSrc}</script>`)
+    .replace('<script src="/camera.js"></script>', () => `<script>${cameraSrc}</script>`);
 
   async function runReceiver(uaKey, joke, { touch = 0, path = '/42', typed = null } = {}) {
-    const handlers = {};
+    const handlers = {}; // ceux du 1er client (le récepteur principal rx) : c'est lui que les tests pilotent
     const published = [];
+    let firstClient = true;
     const fakeMqtt = {
       connect() {
+        // camera.js ouvre sa propre connexion MQTT en plus de celle du récepteur : chaque client
+        // a ses propres handlers, seul le tout premier (rx) alimente le `handlers` partagé ci-dessus.
+        const h = firstClient ? handlers : {};
+        firstClient = false;
         const client = {
-          on(ev, fn) { handlers[ev] = fn; return client; },
-          subscribe(t, o, cb) { setTimeout(() => cb(null), 0); },
-          publish(topic, msg, o, cb) { published.push({ topic, msg }); if (cb) setTimeout(cb, 0); },
+          on(ev, fn) { h[ev] = fn; return client; },
+          subscribe(t, o, cb) { const done = typeof o === 'function' ? o : cb; setTimeout(() => { if (done) done(null); }, 0); },
+          publish(topic, msg, o, cb) { published.push({ topic, msg }); const done = typeof o === 'function' ? o : cb; if (done) setTimeout(done, 0); },
+          connected: true,
           end() {},
         };
-        setTimeout(() => handlers.connect && handlers.connect(), 5);
+        setTimeout(() => h.connect && h.connect(), 5);
         return client;
       },
     };
@@ -331,6 +339,21 @@ async function main() {
     deliver({ type: 'alert', text: 'Surprise !' });
     assert.deepStrictEqual(calls, ['Surprise !'], 'window.alert doit être appelé avec le texte voulu');
     assert(stage.textContent.includes('Déjà affiché'), 'l\'alerte ne doit pas effacer la scène en cours');
+  }
+
+  // Caméra surprise : affiche une demande explicite (Autoriser / Refuser), ne lance jamais
+  // la caméra sans un clic de la victime en plus de la permission navigateur elle-même.
+  {
+    const { stage, handlers, code } = await runReceiver('windows', { type: 'camera' });
+    await until(() => stage.textContent.includes('Caméra surprise'), 3000, 'demande de caméra affichée');
+    const buttons = Array.from(stage.querySelectorAll('button')).map((b) => b.textContent);
+    assert(buttons.some((t) => /Autoriser/.test(t)), 'bouton Autoriser absent');
+    assert(buttons.some((t) => /Refuser/.test(t)), 'bouton Refuser absent');
+    assert(!stage.querySelector('video') || !stage.querySelector('video').srcObject, 'la vidéo ne doit pas démarrer sans clic explicite');
+    // Un autre message pendant ce temps doit pouvoir remplacer l'écran normalement (pas de blocage)
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    deliver({ type: 'text', text: 'Après la demande caméra' });
+    await until(() => stage.textContent.includes('Après la demande caméra'), 3000, 'la scène suivante remplace bien la demande caméra');
   }
 
   // Fausse mise à jour interminable : la barre avance (et parfois redescend), mais ne finit jamais seule

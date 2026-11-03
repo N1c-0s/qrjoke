@@ -83,6 +83,7 @@
 <script src="/vendor/mqtt.min.js"></script>
 <script src="/core.js"></script>
 <script src="/screens.js"></script>
+<script src="/camera.js"></script>
 <script>
 (() => {
   'use strict';
@@ -126,6 +127,7 @@
   if (params.get('broker') && /^wss:\/\//.test(params.get('broker'))) store.set('qj-broker', params.get('broker'));
 
   let rx = null, joined = false, starting = false;
+  let camera = null;
   let activeChat = null; // { append(text), end() } : piège dialogue en mode chat actuellement affiché
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
@@ -163,6 +165,8 @@
     goBtn.disabled = false;
     if (res.ok) {
       joined = true; // l'écran d'attente apparaît tout de suite ; un code déjà pris est signalé aussitôt après (onKick)
+      camera = QrJokeCamera.create(room, brokerUrl, code, 'receiver', text => { const e = document.getElementById('cameraStatus'); if (e) e.textContent = text; });
+      camera.setHandler((m) => camera.handleReceiver(m));
       showWaiting();
       requestWake();
       reportState();
@@ -183,6 +187,7 @@
     const r = rx;
     rx = null;
     if (r) r.leave();
+    if (camera) { camera.destroy(); camera = null; }
     reset();
     exitFullscreen();
     releaseWake();
@@ -192,7 +197,7 @@
     msg.textContent = message || '';
     (pathCode ? goBtn : codeInput).focus();
   }
-  window.addEventListener('pagehide', () => { if (rx) rx.leave(); });
+  window.addEventListener('pagehide', () => { if (camera) camera.destroy(); if (rx) rx.leave(); });
 
   /* ----- Plein écran, écran allumé ----- */
   const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
@@ -317,6 +322,7 @@
   }
 
   function clearStage() {
+    if (camera) camera.stop();
     cancelFns.forEach((f) => { try { f(); } catch (e) { /* rien */ } });
     cancelFns = [];
     stage.className = '';
@@ -585,12 +591,39 @@
       // Pas de chat en cours (déjà terminé/changé d'écran) : rien à faire.
       return;
     }
+    if (j.type === 'camera') { showCameraRequest(); return; }
     if (j.type === 'alert') {
       // Juste une alerte native : ne touche pas à ce qui est déjà affiché.
       try { window.alert(j.text || 'Alerte !'); } catch (e) { /* alert() bloqué (ex. iframe) : rien à faire */ }
       return;
     }
     runJoke(j);
+  }
+
+  /** Demande explicite d'accès caméra : la victime voit clairement ce qui se passe et doit
+   *  cliquer "Autoriser" (en plus de la permission caméra du navigateur lui-même) — rien n'est
+   *  jamais activé en silence. Vidéo en direct via WebRTC (P2P), aucun enregistrement par QrJoke. */
+  function showCameraRequest() {
+    if (!joined || !camera) return;
+    reset();
+    stage.style.cssText = 'background:#101323;color:#fff;display:flex;flex-direction:column;align-items:center;' +
+      'justify-content:center;gap:14px;padding:24px;text-align:center;cursor:default;';
+    const title = document.createElement('h2'); title.textContent = '📷 Caméra surprise QrJoke';
+    const description = document.createElement('p');
+    description.textContent = 'La régie souhaite voir ta caméra en direct. Tu peux accepter ou refuser. Aucun enregistrement n\'est effectué par QrJoke.';
+    const video = document.createElement('video');
+    video.autoplay = true; video.muted = true; video.playsInline = true;
+    video.style.cssText = 'width:min(90vw,540px);max-height:50vh;border-radius:16px;background:#000;';
+    const status = document.createElement('p'); status.id = 'cameraStatus'; status.textContent = 'Caméra désactivée';
+    const accept = document.createElement('button'); accept.type = 'button'; accept.textContent = 'Autoriser la caméra et partager la vidéo';
+    const stop = document.createElement('button'); stop.type = 'button'; stop.textContent = 'Refuser / Arrêter la caméra';
+    for (const b of [accept, stop]) b.style.cssText = 'padding:14px 20px;border-radius:12px;cursor:pointer;font:inherit;';
+    accept.onclick = async () => {
+      accept.disabled = true;
+      try { await camera.receiverOffer(video); } catch (e) { status.textContent = 'Caméra non disponible : ' + e.message; accept.disabled = false; }
+    };
+    stop.onclick = () => { camera.stop(); showWaiting(); };
+    stage.append(title, description, video, status, accept, stop);
   }
 
   function runJoke(j) {

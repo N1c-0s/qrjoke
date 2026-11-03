@@ -228,6 +228,18 @@
   </section>
 
   <section>
+    <h2>📷 Caméra surprise (avec autorisation)</h2>
+    <p class="dim">Choisis un écran individuel (pas « Tous les écrans »). La personne voit une demande explicite et doit l'accepter sur son appareil (en plus de la permission caméra du navigateur) — rien n'est jamais activé en silence. Vidéo en direct via WebRTC (P2P), sans enregistrement.</p>
+    <p id="cameraWarn" class="dim" style="margin:4px 0 0" hidden>Tu es dans le salon commun du broker public : la mise en relation (pas la vidéo elle-même) passe par ce salon. <button id="cameraPrivate" type="button">Passer en salon privé</button></p>
+    <div class="row" style="margin-top:8px">
+      <button id="cameraStart" class="primary" type="button">Demander la caméra</button>
+      <button id="cameraStop" type="button">Arrêter la diffusion</button>
+      <span id="cameraRemoteStatus" class="dim">Caméra inactive</span>
+    </div>
+    <video id="cameraRemoteVideo" autoplay playsinline muted style="display:block;width:100%;max-width:640px;max-height:380px;background:#050505;border-radius:10px;margin-top:12px"></video>
+  </section>
+
+  <section>
     <button id="clear" class="danger" type="button">Retour à l'écran d'attente</button>
   </section>
 
@@ -246,6 +258,7 @@
 <script src="/vendor/mqtt.min.js"></script>
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/core.js"></script>
+<script src="/camera.js"></script>
 <script>
 (() => {
   'use strict';
@@ -272,6 +285,33 @@
   if (params.get('broker') && /^wss:\/\//.test(params.get('broker'))) store.set('qj-broker', params.get('broker'));
 
   let remote = null, receivers = [], target = null, toastTimer = null;
+
+  /* ----- Caméra surprise ----- */
+  let cameraRemote = null;
+  function stopCamera() {
+    if (cameraRemote) { cameraRemote.destroy(); cameraRemote = null; }
+    $('cameraRemoteVideo').srcObject = null;
+    $('cameraRemoteStatus').textContent = 'Caméra inactive';
+  }
+  $('cameraStop').addEventListener('click', stopCamera);
+  $('cameraStart').addEventListener('click', async () => {
+    if (!target || target === 'all') { toast('Sélectionne un seul écran pour la caméra.', true); return; }
+    stopCamera();
+    cameraRemote = window.QrJokeCamera.create(room, brokerUrl, target, 'remote', (text) => { $('cameraRemoteStatus').textContent = text; });
+    cameraRemote.setHandler((m) => cameraRemote.handleRemote(m, $('cameraRemoteVideo')));
+    $('cameraRemoteStatus').textContent = "En attente de l'autorisation caméra…";
+    await new Promise((resolve) => setTimeout(resolve, 750)); // laisse la souscription MQTT s'établir avant de solliciter l'écran
+    await send({ type: 'camera' }, 'Demande caméra');
+  });
+  window.addEventListener('pagehide', stopCamera);
+  if (room === Core.DEFAULT_ROOM) {
+    $('cameraWarn').hidden = false;
+    $('cameraPrivate').addEventListener('click', () => {
+      const next = 'p-' + Core.randomId(8);
+      store.set('qj-room', next);
+      location.href = Core.remoteUrl('', next);
+    });
+  }
 
   function toast(text, bad) {
     toastEl.textContent = text;
@@ -392,7 +432,7 @@
       const label = document.createElement('label');
       const radio = document.createElement('input');
       radio.type = 'radio'; radio.name = 'target'; radio.value = row.id; radio.checked = target === row.id;
-      radio.addEventListener('change', () => { target = row.id; renderTargets(); });
+      radio.addEventListener('change', () => { if (target !== row.id) stopCamera(); target = row.id; renderTargets(); });
       label.append(radio, ' ', row.text);
       div.append(label);
       if (row.release) {
