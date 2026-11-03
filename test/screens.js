@@ -137,7 +137,7 @@ async function main() {
     .replace('<script src="/core.js"></script>', () => `<script>${coreSrc}</script>`)
     .replace('<script src="/screens.js"></script>', () => `<script>${screensSrc}</script>`);
 
-  async function runReceiver(uaKey, joke, { touch = 0 } = {}) {
+  async function runReceiver(uaKey, joke, { touch = 0, path = '/42', typed = null } = {}) {
     const handlers = {};
     const published = [];
     const fakeMqtt = {
@@ -153,7 +153,7 @@ async function main() {
       },
     };
     const dom = new JSDOM(indexHtml, {
-      url: 'https://qrjoke.test/?room=salontest',
+      url: 'https://qrjoke.test' + path,
       runScripts: 'dangerously',
       pretendToBeVisual: true,
       beforeParse(window) {
@@ -166,13 +166,21 @@ async function main() {
     const { document } = dom.window;
     const stage = document.getElementById('stage');
     assert(!document.getElementById('go').hidden, 'le bouton Démarrer doit être visible');
+    const codeInput = document.getElementById('code');
+    const code = typed || path.slice(1);
+    if (typed) {
+      assert.strictEqual(codeInput.value, '', 'sans code dans le lien, le champ est vide');
+      codeInput.value = typed;
+    } else {
+      assert.strictEqual(codeInput.value, code, 'le code du lien doit pré-remplir le champ');
+    }
     document.getElementById('form').dispatchEvent(new dom.window.Event('submit', { cancelable: true }));
-    await until(() => !stage.hidden, 3000, 'récepteur démarré');
+    await until(() => !stage.hidden, 6000, 'récepteur démarré');
     const id = dom.window.localStorage.getItem('qj-id');
     assert(/^[a-z0-9]{8}$/.test(id), 'identifiant du navigateur absent');
-    assert(published.some((p) => p.topic === `qrjoke/salontest/${id}/presence`), 'présence non publiée');
-    handlers.message(`qrjoke/salontest/${id}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
-    return { dom, stage, document, handlers, id };
+    assert(published.some((p) => p.topic === `qrjoke/qrjoke-main/${code}/presence`), 'présence non publiée');
+    handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    return { dom, stage, document, handlers, id, code };
   }
 
   // Auto : chaque système reçoit son propre écran
@@ -199,12 +207,19 @@ async function main() {
     dom.window.close();
   }
 
+  // Sans code dans le lien : le code tapé à la main est utilisé ; code invalide refusé
+  {
+    const { stage, document } = await runReceiver('windows', { type: 'text', text: 'Tapé à la main' }, { path: '/', typed: '07' });
+    await until(() => stage.textContent.includes('Tapé à la main'), 3000, 'blague reçue sur le code tapé');
+    assert(document.getElementById('code').value === '07');
+  }
+
   // Après un écran d'erreur, "clear" puis une blague normale : plus aucun style de l'écran d'erreur ne reste
   {
-    const { dom, stage, handlers, id } = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 30 });
+    const { dom, stage, handlers, code } = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 30 });
     await until(() => stage.textContent.includes(PHRASE.windows), 3000, 'écran bleu affiché');
     assert(stage.getAttribute('style').includes('padding'), 'l\'écran bleu pose des styles');
-    const deliver = (joke) => handlers.message(`qrjoke/salontest/${id}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
     deliver({ type: 'clear' });
     assert.strictEqual(stage.textContent, '', 'clear doit vider la scène');
     deliver({ type: 'text', text: 'Après', bg: '#102030' });

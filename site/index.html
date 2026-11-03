@@ -70,7 +70,8 @@
 <main id="pair">
   <h1>Appairage</h1>
   <form id="form" autocomplete="off">
-    <button id="go" type="submit" autofocus>Démarrer</button>
+    <input id="code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="00" aria-label="Code" autofocus>
+    <button id="go" type="submit">Démarrer</button>
   </form>
   <p id="msg" role="status"></p>
 </main>
@@ -86,7 +87,7 @@
 
   const Core = window.QrJokeCore;
   const $ = (id) => document.getElementById(id);
-  const pair = $('pair'), form = $('form'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
+  const pair = $('pair'), form = $('form'), codeInput = $('code'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
 
   const ua = navigator.userAgent;
   const isMobile =
@@ -108,10 +109,14 @@
   let id = store.get('qj-id');
   if (!/^[a-z0-9]{8}$/.test(id)) { id = Core.randomId(8); store.set('qj-id', id); }
 
-  // Salon : ?room=... dans le lien de la régie (mémorisé ensuite par ce navigateur).
+  // Code à 2 chiffres : dans le lien (/42) ou tapé à la main.
+  const pathCode = (location.pathname.match(/^\/(\d{2})\/?$/) || [])[1] || '';
+  if (pathCode) codeInput.value = pathCode;
+
+  // Salon (optionnel) : ?room=... pour s'isoler du salon commun (mémorisé ensuite par ce navigateur).
   const paramRoom = Core.normRoom(params.get('room'));
   if (paramRoom) store.set('qj-room', paramRoom);
-  const room = paramRoom || Core.normRoom(store.get('qj-room'));
+  const room = paramRoom || Core.normRoom(store.get('qj-room')) || Core.DEFAULT_ROOM;
 
   // Broker : celui par défaut, ou ?broker=wss://... pour en changer.
   const wantedBroker = params.get('broker') || store.get('qj-broker');
@@ -122,15 +127,22 @@
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
 
-  if (!room) {
-    goBtn.hidden = true;
-    msg.style.color = '#555';
-    msg.textContent = 'Ouvre le lien donné par la régie.';
-  }
+  codeInput.addEventListener('input', () => {
+    codeInput.value = codeInput.value.replace(/\D/g, '').slice(0, 2);
+    msg.textContent = '';
+  });
+  if (pathCode) goBtn.focus();
 
   /* ----- Démarrage : un clic ou Entrée (le plein écran exige un geste) ----- */
   async function start() {
-    if (starting || rx || !room) return;
+    if (starting || rx) return;
+    const code = codeInput.value;
+    if (!Core.CODE_RE.test(code)) {
+      msg.style.color = '';
+      msg.textContent = 'Tape le code à 2 chiffres.';
+      codeInput.focus();
+      return;
+    }
     msg.textContent = '';
     enterFullscreen();
     initAudio();
@@ -138,9 +150,10 @@
     starting = true;
     goBtn.disabled = true;
     rx = Core.createReceiver({
-      mqtt: window.mqtt, brokerUrl, room, id, kind, label,
+      mqtt: window.mqtt, brokerUrl, room, code, clientId: id, kind, label,
       onJoke: runJoke,
-      onKick: (why) => leave(why === 'released' ? 'Session terminée.' : 'Repris dans un autre onglet.'),
+      onKick: (why) => leave(
+        why === 'released' ? 'Session terminée.' : why === 'occupied' ? 'Ce code est déjà utilisé.' : 'Repris dans un autre onglet.'),
     });
     const res = await rx.start();
     starting = false;
@@ -151,13 +164,13 @@
       requestWake();
       reportState();
     } else {
-      leave('Broker injoignable, réessaie.');
+      leave(res.error === 'occupied' ? 'Ce code est déjà utilisé.' : 'Broker injoignable, réessaie.');
     }
   }
   form.addEventListener('submit', (e) => { e.preventDefault(); start(); });
 
   // Mode kiosque (?auto=1) : se connecte sans geste. Le son se débloque au premier clic ou à la première touche.
-  if (room && params.get('auto') === '1') start();
+  if (pathCode && params.get('auto') === '1') start();
   const unlockAudio = () => initAudio();
   document.addEventListener('pointerdown', unlockAudio);
   document.addEventListener('keydown', unlockAudio);
@@ -174,7 +187,7 @@
     pair.hidden = false;
     msg.style.color = '';
     msg.textContent = message || '';
-    goBtn.focus();
+    (pathCode ? goBtn : codeInput).focus();
   }
   window.addEventListener('pagehide', () => { if (rx) rx.leave(); });
 

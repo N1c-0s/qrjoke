@@ -7,6 +7,12 @@
   to = "/remote.html"
   status = 200
 
+# /42 -> la page d'appairage (le code est lu dans l'URL). Les fichiers existants gardent la priorité.
+[[redirects]]
+  from = "/:code"
+  to = "/index.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

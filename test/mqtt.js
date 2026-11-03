@@ -29,11 +29,11 @@ async function main() {
   const room = 'test' + core.randomId(6);
   const cleanup = [];
 
-  const fast = { mqtt, room, brokerUrl, heartbeatMs: 300 };
-  const mkReceiver = (id, extra = {}) => {
+  const fast = { mqtt, room, brokerUrl, heartbeatMs: 300, joinWaitMs: 400 };
+  const mkReceiver = (code, extra = {}) => {
     const log = { jokes: [], kicks: [] };
     const r = core.createReceiver({
-      ...fast, id, kind: extra.kind || 'pc', label: extra.label || '',
+      ...fast, code, clientId: extra.clientId || core.randomId(8), kind: extra.kind || 'pc', label: extra.label || '',
       onJoke: (j) => log.jokes.push(j),
       onKick: (why) => log.kicks.push(why),
     });
@@ -42,27 +42,34 @@ async function main() {
   };
 
   try {
-    // --- Salon, identifiants et liens ---
+    // --- Salon, codes et liens ---
     assert.strictEqual(core.normRoom('Bureau'), 'bureau');
     assert.strictEqual(core.normRoom('mauvais salon!'), null);
     assert.strictEqual(core.normRoom(undefined), null);
-    assert.strictEqual(core.receiverUrl('https://x.app', 'bureau'), 'https://x.app/?room=bureau');
+    assert.strictEqual(core.receiverUrl('https://x.app', '42'), 'https://x.app/42');
+    assert.strictEqual(core.receiverUrl('https://x.app', '42', core.DEFAULT_ROOM), 'https://x.app/42');
+    assert.strictEqual(core.receiverUrl('https://x.app', '42', 'bureau'), 'https://x.app/42?room=bureau');
+    assert.strictEqual(core.remoteUrl('https://x.app'), 'https://x.app/remote');
     assert.strictEqual(core.remoteUrl('https://x.app', 'bureau'), 'https://x.app/remote?room=bureau');
     assert(core.ID_RE.test(core.randomId(8)));
-    assert.throws(() => core.createReceiver({ mqtt, room: '??', id: 'abcd1234' }));
-    assert.throws(() => core.createReceiver({ mqtt, room, id: 'X!' }));
-    assert.throws(() => core.createRemote({ mqtt, room: null }));
+    for (const bad of ['4', '123', 'ab', '', undefined]) {
+      assert.throws(() => core.createReceiver({ mqtt, code: bad }), /code invalide/);
+    }
+    assert.throws(() => core.createReceiver({ mqtt, room: '??', code: '42' }));
+    assert.throws(() => core.createReceiver({ mqtt, code: '42', clientId: 'X!' }));
+    assert.throws(() => core.createRemote({ mqtt, room: '??' }));
 
-    // --- Régie + écran A (aucun code : il s'annonce tout seul) ---
+    // --- Régie + écran A (code 42) ---
     let list = [];
     const remote = core.createRemote({ ...fast, onReceivers: (l) => { list = l; } });
     cleanup.push(() => remote.end());
     assert.deepStrictEqual(await remote.connect(), { ok: true });
 
-    const A = mkReceiver('aaaa1111', { label: 'PC · Chrome' });
+    const A = mkReceiver('42', { label: 'PC · Chrome', clientId: 'aaaa1111' });
+    A.id = 'aaaa1111';
     assert.deepStrictEqual(await A.r.start(), { ok: true });
     await until(() => list.length === 1, 4000, 'A visible dans la régie');
-    assert.strictEqual(list[0].id, 'aaaa1111');
+    assert.strictEqual(list[0].code, '42');
     assert.strictEqual(list[0].kind, 'pc');
     assert.strictEqual(list[0].label, 'PC · Chrome');
     assert.strictEqual(list[0].fullscreen, false);
@@ -72,7 +79,7 @@ async function main() {
     await until(() => list[0] && list[0].fullscreen === true, 4000, 'plein écran remonté');
 
     // --- Envoi : champs inconnus supprimés, valeurs bornées ---
-    const res = await remote.send('aaaa1111', { type: 'text', text: 'Salut', bg: '#112233', html: '<b>x</b>', size: 999 });
+    const res = await remote.send('42', { type: 'text', text: 'Salut', bg: '#112233', html: '<b>x</b>', size: 999 });
     assert.deepStrictEqual(res, { ok: true, count: 1 });
     await until(() => A.log.jokes.length === 1, 4000, 'blague reçue');
     const j = A.log.jokes[0];
@@ -81,8 +88,8 @@ async function main() {
     assert(!('html' in j));
 
     // --- Validation côté régie ---
-    assert.deepStrictEqual(await remote.send('aaaa1111', { type: 'rm -rf' }), { ok: false, error: 'invalid-joke' });
-    assert.deepStrictEqual(await remote.send('zzzz9999', { type: 'clear' }), { ok: false, error: 'no-receiver' });
+    assert.deepStrictEqual(await remote.send('42', { type: 'rm -rf' }), { ok: false, error: 'invalid-joke' });
+    assert.deepStrictEqual(await remote.send('99', { type: 'clear' }), { ok: false, error: 'no-receiver' });
     assert.deepStrictEqual(await remote.send('PAS VALIDE', { type: 'clear' }), { ok: false, error: 'invalid' });
 
     // --- Blagues du catalogue (et site/jokes.json identique à la source du serveur local) ---
@@ -91,7 +98,7 @@ async function main() {
     assert.deepStrictEqual(catalog, source, 'site/jokes.json diffère de jokes.json');
     const before = A.log.jokes.length;
     for (const item of catalog) {
-      const r = await remote.send('aaaa1111', item.joke);
+      const r = await remote.send('42', item.joke);
       assert.strictEqual(r.ok, true, 'blague refusée : ' + item.id);
     }
     await until(() => A.log.jokes.length === before + catalog.length, 6000, 'catalogue reçu');
@@ -99,14 +106,14 @@ async function main() {
     // --- Messages cassés ou malveillants envoyés directement sur le broker : ignorés ou nettoyés ---
     const raw = mqtt.connect(brokerUrl, { reconnectPeriod: 0 });
     await new Promise((r) => raw.on('connect', r));
-    const topic = `qrjoke/${room}/aaaa1111/joke`;
+    const topic = `qrjoke/${room}/42/joke`;
     const n0 = A.log.jokes.length;
     raw.publish(topic, 'pas du json', { qos: 1 });
     raw.publish(topic, JSON.stringify({ type: 'joke', from: 'x', joke: { type: 'format-c' } }), { qos: 1 });
     raw.publish(topic, JSON.stringify({ type: 'autre', joke: { type: 'text', text: 'x' } }), { qos: 1 });
     raw.publish(topic, JSON.stringify({ type: 'joke', from: 'x', joke: { type: 'text', text: '<img src=x onerror=alert(1)>', bg: 'url(javascript:1)', fg: '#fff' } }), { qos: 1 });
-    // Présences bidon : un identifiant invalide ne doit pas apparaître dans la régie
-    raw.publish(`qrjoke/${room}/PAS-VALIDE/presence`, JSON.stringify({ type: 'presence', kind: 'pc', since: 1 }), { qos: 1 });
+    // Présences bidon : un code invalide ne doit pas apparaître dans la régie
+    raw.publish(`qrjoke/${room}/123/presence`, JSON.stringify({ type: 'presence', kind: 'pc', since: 1 }), { qos: 1 });
     await wait(600);
     assert.strictEqual(A.log.jokes.length, n0 + 1, 'seule la blague valide doit passer');
     const cleaned = A.log.jokes[A.log.jokes.length - 1];
@@ -115,15 +122,15 @@ async function main() {
     assert.strictEqual(list.length, 1, 'une présence invalide est apparue');
     raw.end(true);
 
-    // --- Deuxième écran (smartphone) : apparaît sans aucun code, reçoit seulement ce qui le concerne ---
-    const B = mkReceiver('bbbb2222', { kind: 'mobile', label: 'Smartphone · Safari' });
+    // --- Deuxième écran (smartphone) : apparaît code 07, reçoit seulement ce qui le concerne ---
+    const B = mkReceiver('07', { kind: 'mobile', label: 'Smartphone · Safari' });
     assert.deepStrictEqual(await B.r.start(), { ok: true });
     await until(() => list.length === 2, 4000, 'B visible');
-    assert.deepStrictEqual(list.map((x) => x.id), ['aaaa1111', 'bbbb2222']);
-    assert.strictEqual(list.find((x) => x.id === 'bbbb2222').kind, 'mobile');
+    assert.deepStrictEqual(list.map((x) => x.code), ['42', '07']);
+    assert.strictEqual(list.find((x) => x.code === '07').kind, 'mobile');
 
     const nA = A.log.jokes.length, nB = B.log.jokes.length;
-    assert.deepStrictEqual(await remote.send('bbbb2222', { type: 'text', text: 'Rien que pour B' }), { ok: true, count: 1 });
+    assert.deepStrictEqual(await remote.send('07', { type: 'text', text: 'Rien que pour B' }), { ok: true, count: 1 });
     await until(() => B.log.jokes.length === nB + 1, 4000, 'B reçoit sa blague');
     await wait(400);
     assert.strictEqual(A.log.jokes.length, nA, 'A ne doit pas recevoir la blague de B');
@@ -135,7 +142,7 @@ async function main() {
     // --- Un autre salon ne reçoit rien et ne voit rien ---
     const otherJokes = [];
     const other = core.createReceiver({
-      ...fast, room: room + 'x', id: 'cccc3333', kind: 'pc',
+      ...fast, room: room + 'x', code: '11', kind: 'pc',
       onJoke: (x) => otherJokes.push(x),
     });
     cleanup.push(() => other.leave());
@@ -143,17 +150,36 @@ async function main() {
     await remote.send('all', { type: 'text', text: 'isolé ?' });
     await wait(500);
     assert.strictEqual(otherJokes.length, 0);
-    assert(!list.some((x) => x.id === 'cccc3333'), 'un écran d\'un autre salon est visible');
+    assert(!list.some((x) => x.code === '11'), 'un écran d\'un autre salon est visible');
+
+    // --- Un code = un écran : un autre navigateur est refusé, l'occupant n'est pas gêné ---
+    const nBefore = A.log.kicks.length;
+    const intruder = mkReceiver('42', { clientId: 'intrus001' });
+    assert.deepStrictEqual(await intruder.r.start(), { ok: false, error: 'occupied' });
+    assert.strictEqual(A.log.kicks.length, nBefore, "l'occupant ne doit pas être évincé");
+    assert.strictEqual(list.filter((x) => x.code === '42').length, 1);
+    assert.deepStrictEqual(await remote.send('42', { type: 'text', text: 'toujours là' }), { ok: true, count: 1 });
+
+    // --- Code libre proposé par la régie ---
+    const free = remote.freeCode();
+    assert(core.CODE_RE.test(free) && !list.some((x) => x.code === free), 'freeCode doit renvoyer un code non utilisé');
 
     // --- Même navigateur qui rouvre la page : la plus récente garde la place ---
-    const A2 = mkReceiver('aaaa1111', { label: 'PC · Chrome' });
+    const A2 = mkReceiver('42', { clientId: A.id });
     assert.deepStrictEqual(await A2.r.start(), { ok: true });
     await until(() => A.log.kicks.includes('taken'), 4000, 'ancienne page évincée');
 
     // --- Libération par la régie ---
-    await remote.release('aaaa1111');
+    await remote.release('42');
     await until(() => A2.log.kicks.includes('released'), 4000, 'release reçu');
-    await until(() => !list.some((x) => x.id === 'aaaa1111'), 4000, 'A retiré de la liste');
+    await until(() => !list.some((x) => x.code === '42'), 4000, 'A retiré de la liste');
+
+    // --- Le code libéré peut être repris par un autre navigateur ---
+    const C = mkReceiver('42', { clientId: 'autre0001' });
+    assert.deepStrictEqual(await C.r.start(), { ok: true });
+    await until(() => list.some((x) => x.code === '42'), 4000, 'C visible');
+    await C.r.leave();
+    await until(() => !list.some((x) => x.code === '42'), 4000, 'C parti');
 
     // --- Départ propre : disparaît tout de suite de la régie ---
     await B.r.leave();
@@ -165,7 +191,7 @@ async function main() {
     await short.connect();
     const ghost = mqtt.connect(brokerUrl, { reconnectPeriod: 0 });
     await new Promise((r) => ghost.on('connect', r));
-    ghost.publish(`qrjoke/${room}/eeee5555/presence`, JSON.stringify({ type: 'presence', from: 'g', id: 'eeee5555', kind: 'pc', since: Date.now() }), { qos: 1 });
+    ghost.publish(`qrjoke/${room}/55/presence`, JSON.stringify({ type: 'presence', from: 'g', code: '55', kind: 'pc', since: Date.now() }), { qos: 1 });
     await until(() => short.receivers().length === 1, 4000, 'fantôme visible');
     await wait(1100);
     assert.strictEqual(short.receivers().length, 0, 'un écran sans battement doit disparaître');

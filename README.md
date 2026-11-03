@@ -10,21 +10,22 @@ Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle 
 |---|---|---|
 | Hébergement | Netlify, 100 % statique | Ton PC, sur ton réseau Wi-Fi |
 | Temps réel | Broker MQTT public (`wss://broker.emqx.io:8084/mqtt`) | Serveur Socket.IO |
-| Appairage | Aucun code : lien avec un salon privé | Code à 2 chiffres ou QR |
+| Appairage | Code à 2 chiffres ou QR | Code à 2 chiffres ou QR |
 | Accès à la régie | Lien avec le salon, sans mot de passe | Mot de passe |
 | Marche hors de chez toi | Oui, depuis n'importe quel réseau | Non, même réseau seulement |
 
-### Version Netlify (sans code d'appairage)
-1. Ouvre la **régie** : `https://<ton-site>.netlify.app/remote`. Elle génère un **salon** privé (un petit nom au hasard) et te donne les liens.
-2. **PC** : ouvre le lien « Écran du PC » affiché par la régie, puis clique sur **Démarrer** (ou Entrée). Plein écran, écran d'attente noir. Mode kiosque sans geste : `chrome.exe --kiosk "<lien>&auto=1"`.
-3. **Smartphone** : scanne le QR de la régie, puis un tap sur **Démarrer**.
-4. Les écrans apparaissent tout seuls dans la régie (« PC · Chrome · #a3f9 », avec l'état plein écran). Un seul écran connecté : il est sélectionné d'office. Plusieurs : « Tous les écrans » par défaut, ou choisis-en un.
+### Version Netlify (codes à 2 chiffres)
+1. Ouvre la **régie** : `https://<ton-site>.netlify.app/remote`. Section **Appairer un écran** : elle propose un code libre (ex. `42`), ou tape le tien. Elle affiche le lien, un bouton Copier, la commande kiosque et le QR.
+2. **PC** : va sur `https://<ton-site>.netlify.app/42` (ou ouvre la page, tape `42`), puis **Démarrer** / Entrée : plein écran, écran d'attente noir. Mode kiosque sans geste : `chrome.exe --kiosk "https://<ton-site>.netlify.app/42?auto=1"`.
+3. **Smartphone** : scanne le QR (c'est le même lien `/42`), puis un tap sur **Démarrer**.
+4. L'écran apparaît dans la régie (« Code 42 · PC · Chrome · plein écran ✅ »). Un seul écran : sélectionné d'office. Plusieurs : « Tous les écrans » par défaut, ou choisis-en un.
 
-- **Salon** : sans lui, un écran affiche « Ouvre le lien donné par la régie ». Le nom est dans les liens (`?room=...`), mémorisé ensuite par le navigateur, et modifiable dans la régie (section Salon). Pour ouvrir la régie sur un autre appareil, copie son lien depuis cette section.
+- **Un code = un seul écran** : un 2e navigateur qui tente `/42` reçoit « Ce code est déjà utilisé ». Le même navigateur peut reprendre son code (la page la plus récente garde la place). « Libérer » dans la régie rend le code.
+- **Salon (optionnel)** : tout le monde partage par défaut un salon commun sur le broker public. Si quelqu'un d'autre utilise l'app et te gêne, donne un nom de salon à la régie : les liens deviennent `/42?room=ton-nom`.
 - **Erreur système (faux plantage)** : section dédiée de la régie, version Netlify uniquement. Liste déroulante : **Auto** (chaque écran affiche l'erreur de son propre système : PC Windows → écran bleu, Mac → écran de redémarrage multilingue, Android → « Appli Système ne répond pas », iPhone/iPad → alerte iOS, autres systèmes → écran bleu) ou un **choix manuel** qui force le même écran partout. Au bout du délai choisi, ou après un clic (Android, iPhone) ou une touche (Mac), un message « Blague ! » apparaît (modifiable), puis retour à l'écran d'attente. Les écrans sont dessinés en HTML/CSS (`site/screens.js`) : aucune image, aucun logo, aucun numéro de support ni champ à remplir.
 - **Autre broker** : `?broker=wss://...` (mémorisé aussi).
-- Le broker est public et sans compte : n'importe qui qui devinerait le nom du salon pourrait afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
-- Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
+- Le broker est public et sans compte, et il n'y a que 100 codes : n'importe qui peut deviner un code libre et afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
+- Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`, qui redirige `/42` vers la page d'appairage). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
 
 ### Version locale
 ## Démarrage
