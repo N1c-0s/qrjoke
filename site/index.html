@@ -409,7 +409,7 @@
           clearInterval(iv);
           stage.replaceChildren();
           fx(j);
-          body(j, j.final || 'Blague ! 😄');
+          body(j, j.final || '');
           if (j.confetti) confetti(3000);
           return;
         }
@@ -440,7 +440,7 @@
       btn.addEventListener('click', () => {
         stage.replaceChildren();
         fx(j);
-        body(j, j.final || 'Haha, raté ! 😂');
+        body(j, j.final || '');
         if (j.confetti) confetti(3000);
       });
     },
@@ -471,7 +471,7 @@
         done: () => {
           clearStage();
           fx(j);
-          body(j, j.final || 'Blague ! 😄');
+          body(j, j.final || '');
           if (j.confetti) confetti(3000);
         },
       });
@@ -489,9 +489,9 @@
           stage.style.color = '#fff';
           stage.style.cursor = 'none';
           fx(j);
-          if (j.image) showPhoto(j, j.final || 'Blague ! 😄');
+          if (j.image) showPhoto(j, j.final || '');
           else {
-            const d = big(j.final || 'Blague ! 😄', j.size || 9);
+            const d = big(j.final || '', j.size || 9);
             d.style.animation = 'fadein .6s ease-out';
             stage.append(d);
           }

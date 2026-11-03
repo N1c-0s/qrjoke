@@ -73,7 +73,7 @@
         "Presque fini…"
       ],
       "seconds": 9,
-      "final": "Blague terminée ! 😄",
+      "final": "",
       "sound": "ding",
       "confetti": true,
       "bg": "#111827",
@@ -88,7 +88,7 @@
       "type": "runaway",
       "text": "Clique sur OK pour continuer",
       "button": "OK",
-      "final": "Haha, tu as cru que c'était si simple ! 😂",
+      "final": "",
       "sound": "boing",
       "confetti": true,
       "bg": "#f8fafc",
