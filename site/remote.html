@@ -360,7 +360,9 @@
   });
   $('roomName').value = room;
   $('roomSet').addEventListener('click', () => {
-    const next = Core.normRoom($('roomName').value.trim());
+    const typed = $('roomName').value.trim();
+    // Champ vide : retour explicite au salon commun, pas une erreur de validation.
+    const next = typed ? Core.normRoom(typed) : Core.DEFAULT_ROOM;
     if (!next) { toast('Salon : lettres, chiffres, - ou _ (32 max).', true); return; }
     store.set('qj-room', next);
     location.href = Core.remoteUrl('', next);
