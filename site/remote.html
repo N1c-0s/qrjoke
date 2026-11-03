@@ -275,7 +275,10 @@
     <div class="row" style="margin-bottom:12px">
       <label>Intensité <input type="range" id="prankIntensity" min="1" max="100" value="55"></label>
       <output id="prankIntensityValue">55 %</output>
-      <label>Durée (secondes, 0 = manuel) <input type="number" id="prankDuration" min="0" max="3600" value="30" style="width:90px"></label>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <label>Durée <input type="range" id="prankDuration" min="0" max="180" step="5" value="30"></label>
+      <output id="prankDurationValue">30 s</output>
     </div>
     <div id="prankButtons" class="grid"></div>
   </section>
@@ -670,12 +673,14 @@
   /* ----- 11 pranks interactifs + atelier JavaScript (sandboxé) ----- */
   const intensityEl = $('prankIntensity');
   intensityEl.addEventListener('input', () => { $('prankIntensityValue').textContent = intensityEl.value + ' %'; });
+  const durationEl = $('prankDuration');
+  durationEl.addEventListener('input', () => { $('prankDurationValue').textContent = durationEl.value === '0' ? 'Manuel' : durationEl.value + ' s'; });
   for (const [id, emoji, name] of QrJokePranks.definitions) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = emoji + ' ' + name;
     button.addEventListener('click', () => send({
-      type: 'prank', prank: id, intensity: Number(intensityEl.value), duration: Number($('prankDuration').value) || 0,
+      type: 'prank', prank: id, intensity: Number(intensityEl.value), duration: Number(durationEl.value) || 0,
     }, name));
     $('prankButtons').append(button);
   }
