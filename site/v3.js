@@ -252,5 +252,7 @@
     send({ type: 'custom', code: editor.value, duration: 0 }, 'Studio Custom');
   };
 
-  show('dashboard');
+  // Appairage par défaut (code/lien/QR + écrans connectés) : c'est ce dont on a besoin en
+  // arrivant sur la régie, pas le tableau de bord. Les autres onglets restent à un clic.
+  show('appairage');
 })();
