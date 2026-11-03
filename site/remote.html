@@ -106,8 +106,11 @@
       <span class="dim">Un code = un seul écran. PC : ouvre le lien, puis « Démarrer » (ou Entrée). Smartphone : scanne le QR, puis un tap.</span>
     </div>
     <div class="row" style="margin-top:8px">
-      <label class="dim" style="flex:1;min-width:220px">Message d'accroche sur l'écran (remplace « Démarrer » par un bouton plus tentant)
-        <input id="pairLure" maxlength="60" placeholder="🔮 Quel est ton profil secret ?" style="width:100%;margin-top:4px">
+      <label class="dim" style="flex:1;min-width:220px">Modèle d'accueil
+        <select id="pairEntry" style="width:100%;margin-top:4px"><option value="cookie">Cookies (par défaut)</option><option value="langue">Choix de langue</option><option value="chargement">Chargement terminé</option></select>
+      </label>
+      <label class="dim" style="flex:1;min-width:220px">Texte du bouton (facultatif)
+        <input id="pairLure" maxlength="60" placeholder="Texte par défaut" style="width:100%;margin-top:4px">
       </label>
     </div>
     <div class="row" style="margin-top:8px">
@@ -544,12 +547,14 @@
   /* ----- Code, lien, QR et salon ----- */
   const codeEl = $('pairCode');
   const lureEl = $('pairLure');
-  const DEFAULT_LURE = '🔮 Quel est ton profil secret ?';
-  lureEl.value = store.get('qj-lure') || DEFAULT_LURE;
+  const entryEl = $('pairEntry');
+  entryEl.value = ['cookie','langue','chargement'].includes(store.get('qj-entry')) ? store.get('qj-entry') : 'cookie';
+  lureEl.value = store.get('qj-lure') || '';
   function withLure(url) {
     const lure = lureEl.value.trim().slice(0, 60);
+    url += (url.includes('?') ? '&' : '?') + 'entry=' + encodeURIComponent(entryEl.value);
     if (!lure) return url;
-    return url + (url.includes('?') ? '&' : '?') + 'lure=' + encodeURIComponent(lure);
+    return url + '&lure=' + encodeURIComponent(lure);
   }
   function refreshLinks() {
     const code = codeEl.value;
@@ -568,6 +573,7 @@
     refreshLinks();
   });
   lureEl.addEventListener('input', () => { store.set('qj-lure', lureEl.value); refreshLinks(); });
+  entryEl.addEventListener('change', () => { store.set('qj-entry', entryEl.value); refreshLinks(); });
   function pickFreeCode() {
     const c = remote && remote.freeCode();
     if (c) { codeEl.value = c; refreshLinks(); }
