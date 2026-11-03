@@ -106,6 +106,11 @@
       <span class="dim">Un code = un seul écran. PC : ouvre le lien, puis « Démarrer » (ou Entrée). Smartphone : scanne le QR, puis un tap.</span>
     </div>
     <div class="row" style="margin-top:8px">
+      <label class="dim" style="flex:1;min-width:220px">Message d'accroche sur l'écran (remplace « Démarrer » par un bouton plus tentant)
+        <input id="pairLure" maxlength="60" placeholder="🎁 Surprise ici, appuie pour voir" style="width:100%;margin-top:4px">
+      </label>
+    </div>
+    <div class="row" style="margin-top:8px">
       <input id="pcUrl" readonly style="flex:1;min-width:220px" aria-label="Lien de l'écran">
       <button id="pcCopy" type="button">Copier</button>
     </div>
@@ -538,10 +543,18 @@
 
   /* ----- Code, lien, QR et salon ----- */
   const codeEl = $('pairCode');
+  const lureEl = $('pairLure');
+  const DEFAULT_LURE = '🎁 Surprise ici, appuie pour voir';
+  lureEl.value = store.get('qj-lure') || DEFAULT_LURE;
+  function withLure(url) {
+    const lure = lureEl.value.trim().slice(0, 60);
+    if (!lure) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'lure=' + encodeURIComponent(lure);
+  }
   function refreshLinks() {
     const code = codeEl.value;
     const ok = Core.CODE_RE.test(code);
-    const url = ok ? Core.receiverUrl(location.origin, code, room) : '';
+    const url = ok ? withLure(Core.receiverUrl(location.origin, code, room)) : '';
     $('pcUrl').value = url;
     $('kiosk').textContent = ok ? 'chrome.exe --kiosk "' + url + (url.includes('?') ? '&' : '?') + 'auto=1"' : '';
     if (!ok) { $('qrImg').removeAttribute('src'); return; }
@@ -554,6 +567,7 @@
     codeEl.value = codeEl.value.replace(/\D/g, '').slice(0, 2);
     refreshLinks();
   });
+  lureEl.addEventListener('input', () => { store.set('qj-lure', lureEl.value); refreshLinks(); });
   function pickFreeCode() {
     const c = remote && remote.freeCode();
     if (c) { codeEl.value = c; refreshLinks(); }

@@ -33,6 +33,18 @@
   }
   #msg { min-height: 1.4em; margin: 0; color: #b91c1c; }
 
+  /* ----- Écran d'accroche (remplace le formulaire quand le lien porte ?lure=) ----- */
+  #lure {
+    height: 100%; display: flex; align-items: center; justify-content: center;
+    background: #f4f5f7; padding: 1.2rem; box-sizing: border-box; text-align: center;
+  }
+  #lureGo {
+    font-size: 1.3rem; font-weight: 700; padding: 1.4rem 2rem; max-width: 90vw; border: 0; border-radius: 18px;
+    background: #2563eb; color: #fff; cursor: pointer; box-shadow: 0 8px 24px rgba(37,99,235,.35);
+    animation: lurePulse 1.6s ease-in-out infinite;
+  }
+  @keyframes lurePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+
   /* ----- Scène plein écran ----- */
   #stage {
     position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -87,6 +99,13 @@
   <p id="msg" role="status"></p>
 </main>
 
+<!-- Remplace le formulaire ci-dessus quand le lien porte un message d'accroche (?lure=...) :
+     un seul gros bouton, plus naturel à cliquer qu'un formulaire "Code / Démarrer". Le clic
+     déclenche exactement le même start() (plein écran + appairage), rien d'autre ne change. -->
+<main id="lure" hidden>
+  <button id="lureGo" type="button"></button>
+</main>
+
 <div id="stage" hidden></div>
 
 <div id="avConsent" hidden aria-live="polite">
@@ -115,6 +134,7 @@
   const Core = window.QrJokeCore;
   const $ = (id) => document.getElementById(id);
   const pair = $('pair'), form = $('form'), codeInput = $('code'), goBtn = $('go'), msg = $('msg'), stage = $('stage');
+  const lureBox = $('lure'), lureGo = $('lureGo');
 
   const ua = navigator.userAgent;
   const isMobile =
@@ -139,6 +159,17 @@
   // Code à 2 chiffres : dans le lien (/42) ou tapé à la main.
   const pathCode = (location.pathname.match(/^\/(\d{2})\/?$/) || [])[1] || '';
   if (pathCode) codeInput.value = pathCode;
+
+  // Message d'accroche (?lure=...) : remplace le formulaire "Code / Démarrer" par un seul gros
+  // bouton au texte choisi par la régie, plus naturel à cliquer. Même start() derrière le clic,
+  // rien d'autre ne change (toujours un vrai geste de la personne, requis pour le plein écran/son).
+  const lureText = pathCode ? (params.get('lure') || '').slice(0, 60) : '';
+  if (lureText) {
+    lureGo.textContent = lureText;
+    pair.hidden = true;
+    lureBox.hidden = false;
+    lureGo.addEventListener('click', () => start());
+  }
 
   // Salon (optionnel) : ?room=... pour s'isoler du salon commun (mémorisé ensuite par ce navigateur).
   const paramRoom = Core.normRoom(params.get('room'));
@@ -203,7 +234,7 @@
     codeInput.value = codeInput.value.replace(/\D/g, '').slice(0, 2);
     msg.textContent = '';
   });
-  if (pathCode) goBtn.focus();
+  if (pathCode) (lureText ? lureGo : goBtn).focus();
 
   /* ----- Démarrage : un clic ou Entrée (le plein écran exige un geste) ----- */
   async function start() {
