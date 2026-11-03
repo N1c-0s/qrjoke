@@ -97,6 +97,7 @@
       duration: num(j.duration, 0, 3600),
       os: OS_CHOICES.has(j.os) ? j.os : undefined,
       trap: TRAP_KINDS.has(j.trap) ? j.trap : undefined,
+      placeholder: str(j.placeholder, 80),
       audio: audio(j.audio),
       image: image(j.image),
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
