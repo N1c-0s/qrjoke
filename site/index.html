@@ -585,6 +585,11 @@
       // Pas de chat en cours (déjà terminé/changé d'écran) : rien à faire.
       return;
     }
+    if (j.type === 'alert') {
+      // Juste une alerte native : ne touche pas à ce qui est déjà affiché.
+      try { window.alert(j.text || 'Alerte !'); } catch (e) { /* alert() bloqué (ex. iframe) : rien à faire */ }
+      return;
+    }
     runJoke(j);
   }
 

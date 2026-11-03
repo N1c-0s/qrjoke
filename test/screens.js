@@ -321,6 +321,18 @@ async function main() {
     await until(() => stage.textContent.includes('Piégé !'), 3000, 'trapEnd révèle la blague finale');
   }
 
+  // Alerte native : juste un popup, ne touche pas à ce qui est déjà affiché à l'écran
+  {
+    const { dom, stage, handlers, code } = await runReceiver('windows', { type: 'text', text: 'Déjà affiché' });
+    await until(() => stage.textContent.includes('Déjà affiché'), 3000, 'texte affiché avant l\'alerte');
+    const calls = [];
+    dom.window.alert = (msg) => calls.push(msg);
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    deliver({ type: 'alert', text: 'Surprise !' });
+    assert.deepStrictEqual(calls, ['Surprise !'], 'window.alert doit être appelé avec le texte voulu');
+    assert(stage.textContent.includes('Déjà affiché'), 'l\'alerte ne doit pas effacer la scène en cours');
+  }
+
   // Fausse mise à jour interminable : la barre avance (et parfois redescend), mais ne finit jamais seule
   {
     const { stage, handlers, code } = await runReceiver('windows', { type: 'update' });
