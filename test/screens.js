@@ -207,6 +207,22 @@ async function main() {
     dom.window.close();
   }
 
+  // Photo : acceptée seulement en data URL image bornée ; affichée via <img>, jamais en HTML
+  {
+    const Core = require('../site/core.js');
+    const ok = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
+    assert.strictEqual(Core.sanitize({ type: 'image', image: ok }).image, ok);
+    for (const bad of ['http://x/y.jpg', 'javascript:alert(1)', 'data:text/html;base64,PGI+', 'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/jpeg;base64,' + 'A'.repeat(Core.MAX_IMAGE), 42]) {
+      assert.strictEqual(Core.sanitize({ type: 'image', image: bad }).image, undefined, 'image refusée : ' + String(bad).slice(0, 30));
+    }
+    const { stage } = await runReceiver('windows', { type: 'image', image: ok, text: 'Légende', duration: 30 });
+    await until(() => stage.querySelector('img.photo'), 3000, 'photo affichée');
+    assert.strictEqual(stage.querySelector('img.photo').getAttribute('src'), ok);
+    assert(stage.textContent.includes('Légende'));
+    const rev = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 1, image: ok, final: 'Surprise', duration: 30 });
+    await until(() => rev.stage.querySelector('img.photo') && rev.stage.textContent.includes('Surprise'), 9000, 'photo à la révélation');
+  }
+
   // Sans code dans le lien : le code tapé à la main est utilisé ; code invalide refusé
   {
     const { stage, document } = await runReceiver('windows', { type: 'text', text: 'Tapé à la main' }, { path: '/', typed: '07' });

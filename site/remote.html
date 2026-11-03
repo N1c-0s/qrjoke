@@ -102,6 +102,22 @@
   </section>
 
   <section>
+    <h2>Photo</h2>
+    <div class="row">
+      <input id="photoFile" type="file" accept="image/*" aria-label="Choisir une photo">
+      <input id="photoCap" maxlength="120" placeholder="Légende (facultatif)" aria-label="Légende" style="flex:1;min-width:180px">
+      <label class="dim">Durée (s, 0 = reste) <input id="photoDur" type="number" min="0" max="3600" value="0" style="width:70px"></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <img id="photoPrev" alt="" hidden style="max-height:90px;border-radius:6px">
+      <span id="photoInfo" class="dim"></span>
+      <button id="photoGo" class="primary" type="button" disabled>Envoyer la photo</button>
+      <button id="photoOs" type="button" disabled title="Faux plantage, puis la photo à la révélation">Après une erreur système</button>
+    </div>
+    <p id="photoWarn" class="dim" style="margin:8px 0 0" hidden>Tu es dans le salon commun du broker public : quelqu'un qui le surveille pourrait voir la photo passer. <button id="photoPrivate" type="button">Passer en salon privé</button></p>
+  </section>
+
+  <section>
     <h2>Texte libre</h2>
     <form id="free">
       <textarea id="ftext" placeholder="Écris ton message…"></textarea>
@@ -343,6 +359,79 @@
   $('ftext').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('free').requestSubmit();
   });
+
+  /* ----- Photo : réduite et compressée dans le navigateur avant l'envoi ----- */
+  let photo = null; // data URL JPEG
+  const MAX_SIDE = 1280;
+  function fileToImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image')); };
+      img.src = url;
+    });
+  }
+  function compress(img) {
+    let side = MAX_SIDE;
+    for (let tries = 0; tries < 6; tries += 1) {
+      const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.naturalWidth * k));
+      cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      for (const q of [0.8, 0.65, 0.5]) {
+        const data = cv.toDataURL('image/jpeg', q);
+        if (data.length <= Core.MAX_IMAGE) return data;
+      }
+      side = Math.round(side * 0.75);
+    }
+    return null;
+  }
+  const photoBtns = [$('photoGo'), $('photoOs')];
+  $('photoFile').addEventListener('change', async () => {
+    const file = $('photoFile').files[0];
+    photo = null;
+    photoBtns.forEach((b) => { b.disabled = true; });
+    $('photoPrev').hidden = true;
+    $('photoInfo').textContent = '';
+    if (!file) return;
+    try {
+      const data = compress(await fileToImage(file));
+      if (!data) throw new Error('trop gros');
+      photo = data;
+      $('photoPrev').src = data;
+      $('photoPrev').hidden = false;
+      $('photoInfo').textContent = Math.round(data.length / 1024) + ' Ko';
+      photoBtns.forEach((b) => { b.disabled = false; });
+    } catch (e) {
+      toast('Photo illisible ou trop lourde.', true);
+    }
+  });
+  $('photoGo').addEventListener('click', () => {
+    if (!photo) return;
+    send({
+      type: 'image', image: photo, text: $('photoCap').value.trim() || undefined,
+      duration: Number($('photoDur').value) || 0,
+    }, 'Photo');
+  });
+  $('photoOs').addEventListener('click', () => {
+    if (!photo) return;
+    const seconds = Math.min(120, Math.max(3, Number($('osSec').value) || 12));
+    send({
+      type: 'oserror', os: $('osSel').value, seconds, image: photo,
+      final: $('photoCap').value.trim() || $('osFinal').value.trim() || undefined,
+      duration: seconds + 30,
+    }, 'Erreur système + photo');
+  });
+  if (room === Core.DEFAULT_ROOM) {
+    $('photoWarn').hidden = false;
+    $('photoPrivate').addEventListener('click', () => {
+      const next = 'p-' + Core.randomId(8);
+      store.set('qj-room', next);
+      location.href = Core.remoteUrl('', next);
+    });
+  }
 
   /* ----- Erreur système : Auto (détection) ou choix manuel ----- */
   $('osGo').addEventListener('click', () => {

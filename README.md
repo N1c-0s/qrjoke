@@ -23,6 +23,7 @@ Tout se passe dans une page web ouverte volontairement. Le serveur ne contrôle 
 - **Un code = un seul écran** : un 2e navigateur qui tente `/42` reçoit « Ce code est déjà utilisé ». Le même navigateur peut reprendre son code (la page la plus récente garde la place). « Libérer » dans la régie rend le code.
 - **Salon (optionnel)** : tout le monde partage par défaut un salon commun sur le broker public. Si quelqu'un d'autre utilise l'app et te gêne, donne un nom de salon à la régie : les liens deviennent `/42?room=ton-nom`.
 - **Erreur système (faux plantage)** : section dédiée de la régie, version Netlify uniquement. Liste déroulante : **Auto** (chaque écran affiche l'erreur de son propre système : PC Windows → écran bleu, Mac → écran de redémarrage multilingue, Android → « Appli Système ne répond pas », iPhone/iPad → alerte iOS, autres systèmes → écran bleu) ou un **choix manuel** qui force le même écran partout. Au bout du délai choisi, ou après un clic (Android, iPhone) ou une touche (Mac), un message « Blague ! » apparaît (modifiable), puis retour à l'écran d'attente. Les écrans sont dessinés en HTML/CSS (`site/screens.js`) : aucune image, aucun logo, aucun numéro de support ni champ à remplir.
+- **Photo** : section dédiée de la régie. Choisis une image (ou prends-la avec le téléphone) : elle est réduite à 1280 px et compressée en JPEG dans le navigateur (limite d'environ 400 Ko, le broker refuse les gros messages), puis affichée plein écran avec une légende facultative. Le bouton « Après une erreur système » joue le faux plantage puis révèle la photo. Les écrans n'acceptent que des data URL JPEG/PNG/WebP. Dans le salon commun, la régie propose « Passer en salon privé » pour que personne d'autre ne voie passer la photo.
 - **Autre broker** : `?broker=wss://...` (mémorisé aussi).
 - Le broker est public et sans compte, et il n'y a que 100 codes : n'importe qui peut deviner un code libre et afficher un message. Chaque écran valide ce qu'il reçoit (liste blanche, valeurs bornées, texte seul, jamais de HTML), donc le pire cas reste un message à l'écran.
 - Pas de build : le dossier `site/` est publié tel quel (`netlify.toml`, qui redirige `/42` vers la page d'appairage). `site/jokes.json` est une copie de `jokes.json` (un test vérifie qu'ils sont identiques). `site/vendor/` contient les bibliothèques `mqtt.js` et `qrcode` déjà prêtes.
@@ -83,7 +84,7 @@ Sur **iPhone**, Safari n'autorise pas le vrai plein écran sur une page web : la
   "joke": { "type": "typewriter", "text": "Salut\nça va ?", "bg": "#000000", "fg": "#ffffff", "size": 6, "duration": 10 } }
 ```
 
-Types : `text`, `typewriter`, `countdown`, `loading`, `runaway`, `shake`, `flip`, `confetti`, `blackout`, `clear` (et `oserror` avec `os` = `auto`, `windows`, `mac`, `android` ou `iphone`, version Netlify uniquement).
+Types : `text`, `typewriter`, `countdown`, `loading`, `runaway`, `shake`, `flip`, `confetti`, `blackout`, `clear` (et, version Netlify uniquement : `oserror` avec `os` = `auto`, `windows`, `mac`, `android` ou `iphone`, et `image` avec un champ `image` en data URL).
 
 | Champ | Rôle |
 |---|---|

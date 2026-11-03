@@ -41,6 +41,8 @@
   }
   .big { font-weight: 800; line-height: 1.15; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 96vw; }
   .dim { opacity: .7; font-weight: 500; }
+  .photo { max-width: 96vw; max-height: 80vh; object-fit: contain; border-radius: 6px; animation: fadein .5s ease-out; }
+  .photo.full { max-height: 94vh; }
   .caret::after { content: "\258C"; margin-left: .05em; animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: 0; } }
 
@@ -347,6 +349,16 @@
     cancelFns.push(() => { cancelAnimationFrame(raf); cv.remove(); });
   }
 
+  // Photo validée par Core.sanitize (data URL image uniquement) : posée via src, jamais via innerHTML.
+  function showPhoto(j, caption) {
+    const img = document.createElement('img');
+    img.className = 'photo' + (caption ? '' : ' full');
+    img.alt = '';
+    img.src = j.image;
+    stage.append(img);
+    if (caption) stage.append(big(caption, j.size || 6));
+  }
+
   const DEFER_FX = new Set(['countdown', 'loading', 'runaway', 'oserror']); // le son part au moment de la révélation
 
   const HANDLERS = {
@@ -462,12 +474,20 @@
           stage.style.color = '#fff';
           stage.style.cursor = 'none';
           fx(j);
-          const d = big(j.final || 'Blague ! 😄', j.size || 9);
-          d.style.animation = 'fadein .6s ease-out';
-          stage.append(d);
+          if (j.image) showPhoto(j, j.final || 'Blague ! 😄');
+          else {
+            const d = big(j.final || 'Blague ! 😄', j.size || 9);
+            d.style.animation = 'fadein .6s ease-out';
+            stage.append(d);
+          }
           if (j.confetti) confetti(3000);
         },
       });
+    },
+
+    image: (j) => {
+      if (!j.image) return;
+      showPhoto(j, j.text);
     },
 
     blackout: (j) => {

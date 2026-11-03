@@ -58,7 +58,7 @@
 
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
-    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'clear',
+    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'clear',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing']);
@@ -67,6 +67,10 @@
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
   };
+  // Photo : uniquement une image JPEG/PNG/WebP en data URL, taille bornée (le broker refuse les gros messages).
+  const IMAGE_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+  const MAX_IMAGE = 400000;
+  const image = (v) => (typeof v === 'string' && v.length <= MAX_IMAGE && IMAGE_RE.test(v) ? v : undefined);
   const color = (v) =>
     typeof v === 'string' && /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20})$/.test(v) ? v : undefined;
 
@@ -86,6 +90,7 @@
       speed: num(j.speed, 10, 500),
       duration: num(j.duration, 0, 3600),
       os: OS_CHOICES.has(j.os) ? j.os : undefined,
+      image: image(j.image),
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
       vibrate: j.vibrate === true ? true : undefined,
       confetti: j.confetti === true ? true : undefined,
@@ -406,7 +411,7 @@
   }
 
   return {
-    DEFAULT_BROKER, DEFAULT_ROOM, ID_RE, CODE_RE, ROOM_RE, STALE_MS,
+    DEFAULT_BROKER, DEFAULT_ROOM, ID_RE, CODE_RE, ROOM_RE, STALE_MS, MAX_IMAGE,
     randomId, normRoom, sanitize, detectOS, resolveOS, receiverUrl, remoteUrl,
     createReceiver, createRemote,
   };

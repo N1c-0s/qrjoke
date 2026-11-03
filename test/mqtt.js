@@ -103,6 +103,13 @@ async function main() {
     }
     await until(() => A.log.jokes.length === before + catalog.length, 6000, 'catalogue reçu');
 
+    // --- Photo volumineuse (limite haute) : traverse le broker intacte ---
+    const bigImg = 'data:image/jpeg;base64,' + 'A'.repeat(core.MAX_IMAGE - 30);
+    const nImg = A.log.jokes.length;
+    assert.deepStrictEqual(await remote.send('42', { type: 'image', image: bigImg, text: 'Photo' }), { ok: true, count: 1 });
+    await until(() => A.log.jokes.length === nImg + 1, 5000, 'photo reçue');
+    assert.strictEqual(A.log.jokes[nImg].image, bigImg);
+
     // --- Messages cassés ou malveillants envoyés directement sur le broker : ignorés ou nettoyés ---
     const raw = mqtt.connect(brokerUrl, { reconnectPeriod: 0 });
     await new Promise((r) => raw.on('connect', r));
