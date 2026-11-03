@@ -172,10 +172,16 @@
     </div>
     <div class="row" style="margin-top:8px">
       <input id="trapPlaceholder" maxlength="80" placeholder="Champ (dialogue) : ex. « Code de vérification »" aria-label="Texte du champ" style="flex:1;min-width:200px">
+      <label class="dim"><input id="trapChat" type="checkbox"> Mode chat (dialogue en direct, pas de révélation automatique)</label>
     </div>
     <div id="dialogueLog" style="margin-top:10px" hidden>
       <p class="dim" style="margin:0 0 4px">Ce qu'il/elle tape dans la boite de dialogue, en direct :</p>
       <div id="dialogueLines" style="max-height:140px;overflow:auto;font:13px monospace;background:#111;color:#0f0;padding:8px;border-radius:6px;"></div>
+      <div id="chatReplyRow" class="row" style="margin-top:8px" hidden>
+        <input id="chatReplyText" maxlength="300" placeholder="Ta réponse (apparaît sur son écran)" aria-label="Réponse" style="flex:1;min-width:200px">
+        <button id="chatReplyGo" type="button">Envoyer</button>
+        <button id="chatEndGo" type="button">Terminer (révélation)</button>
+      </div>
     </div>
   </section>
 
@@ -679,7 +685,11 @@
     reader.readAsDataURL(voiceBlob);
   });
 
+  let chatActive = false; // un piège dialogue en mode chat est en cours sur l'écran ciblé
+
   $('trapGo').addEventListener('click', () => {
+    const isType = $('trapKind').value === 'type';
+    const chat = isType && $('trapChat').checked;
     send({
       type: 'trap',
       trap: $('trapKind').value,
@@ -689,11 +699,41 @@
       button2: $('trapCancel').value.trim() || undefined,
       final: $('trapFinal').value.trim() || undefined,
       placeholder: $('trapPlaceholder').value.trim() || undefined,
+      chat: chat || undefined,
     }, 'Piège');
-    if ($('trapKind').value === 'type') $('dialogueLog').hidden = false;
+    if (isType) {
+      $('dialogueLog').hidden = false;
+      $('dialogueLines').replaceChildren();
+    }
+    chatActive = chat;
+    $('chatReplyRow').hidden = !chat;
   });
 
-  $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));
+  $('chatReplyGo').addEventListener('click', () => {
+    const text = $('chatReplyText').value.trim();
+    if (!text || !chatActive) return;
+    send({ type: 'trapReply', text }, 'Réponse');
+    const box = $('dialogueLines');
+    const line = document.createElement('div');
+    line.textContent = `[moi] ${text}`;
+    box.appendChild(line);
+    box.scrollTop = box.scrollHeight;
+    $('chatReplyText').value = '';
+  });
+  $('chatReplyText').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('chatReplyGo').click(); });
+
+  $('chatEndGo').addEventListener('click', () => {
+    if (!chatActive) return;
+    send({ type: 'trapEnd' }, 'Fin du dialogue');
+    chatActive = false;
+    $('chatReplyRow').hidden = true;
+  });
+
+  $('clear').addEventListener('click', () => {
+    chatActive = false;
+    $('chatReplyRow').hidden = true;
+    send({ type: 'clear' }, 'Écran d\'attente');
+  });
 })();
 </script>
 </body>

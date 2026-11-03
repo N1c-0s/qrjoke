@@ -126,6 +126,7 @@
   if (params.get('broker') && /^wss:\/\//.test(params.get('broker'))) store.set('qj-broker', params.get('broker'));
 
   let rx = null, joined = false, starting = false;
+  let activeChat = null; // { append(text), end() } : piège dialogue en mode chat actuellement affiché
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
 
@@ -153,7 +154,7 @@
     goBtn.disabled = true;
     rx = Core.createReceiver({
       mqtt: window.mqtt, brokerUrl, room, code, clientId: id, kind, label,
-      onJoke: runJoke,
+      onJoke: dispatchJoke,
       onKick: (why) => leave(
         why === 'released' ? 'Session terminée.' : why === 'occupied' ? 'Ce code est déjà utilisé.' : 'Repris dans un autre onglet.'),
     });
@@ -498,9 +499,10 @@
       stage.style.cursor = 'default';
       const os = Core.resolveOS(j.os, detectedOS);
       window.QrJokeScreens.renderTrap(j.trap, os, {
-        stage, text: j.text, button: j.button, button2: j.button2, placeholder: j.placeholder,
+        stage, text: j.text, button: j.button, button2: j.button2, placeholder: j.placeholder, chat: j.chat,
         cancel: (f) => cancelFns.push(f),
         onReply: (text) => { if (rx) rx.sendReply(text); },
+        onChatReady: (api) => { activeChat = api; },
         done: () => {
           clearStage();
           fx(j);
@@ -545,11 +547,25 @@
     },
   };
 
+  /** Messages de continuation d'un piège "dialogue" en mode chat : n'importe à la scène en cours,
+   *  pas de reset. Tout le reste passe par runJoke comme d'habitude. */
+  function dispatchJoke(j) {
+    if (!j) return;
+    if (j.type === 'trapReply') { if (activeChat) activeChat.append(j.text || ''); return; }
+    if (j.type === 'trapEnd') {
+      if (activeChat) { activeChat.end(); activeChat = null; return; }
+      // Pas de chat en cours (déjà terminé/changé d'écran) : rien à faire.
+      return;
+    }
+    runJoke(j);
+  }
+
   function runJoke(j) {
     if (!joined || !j) return;
     if (j.type === 'clear') { showWaiting(); return; }
     const handler = HANDLERS[j.type];
     if (!handler) return;
+    activeChat = null; // toute autre blague remplace la scène : le chat en cours n'a plus de sens
     reset();
     stage.style.background = j.bg || '#000';
     stage.style.color = j.fg || '#fff';

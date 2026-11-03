@@ -297,6 +297,30 @@ async function main() {
     assert.deepStrictEqual(replies.map((r) => r.text), ['essai0', 'essai1', 'essai2', 'dernier']);
   }
 
+  // Dialogue en mode chat : pas d'escalade automatique, les réponses de la régie s'affichent
+  // dans la scène en cours (sans la vider), et seul un trapEnd révèle.
+  {
+    const { stage, handlers, code } = await runReceiver('mac', {
+      type: 'trap', trap: 'type', text: 'Discussion', placeholder: 'Écris ici', final: 'Piégé !', chat: true,
+    });
+    await until(() => stage.textContent.includes('Discussion'), 3000, 'chat affiché');
+    const input = stage.querySelector('input');
+    const btn = stage.querySelector('button');
+    const win = stage.ownerDocument.defaultView;
+    input.value = 'Salut ?';
+    btn.dispatchEvent(new win.Event('click'));
+    await until(() => stage.textContent.includes('Salut ?'), 3000, 'bulle de la victime affichée');
+    assert.strictEqual(input.value, '', 'le champ se vide après envoi');
+
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    deliver({ type: 'trapReply', text: 'Oui, tape le code' });
+    await until(() => stage.textContent.includes('Oui, tape le code'), 3000, 'réponse de la régie affichée');
+    assert(stage.textContent.includes('Discussion'), 'la scène ne doit pas être réinitialisée par une réponse de chat');
+
+    deliver({ type: 'trapEnd' });
+    await until(() => stage.textContent.includes('Piégé !'), 3000, 'trapEnd révèle la blague finale');
+  }
+
   // Après un écran d'erreur, "clear" puis une blague normale : plus aucun style de l'écran d'erreur ne reste
   {
     const { dom, stage, handlers, code } = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 30 });

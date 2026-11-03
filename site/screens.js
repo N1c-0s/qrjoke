@@ -286,12 +286,63 @@
     },
   };
 
-  /** Dessine le piège demandé (shrink, swap, fakeclick) stylé selon l'OS, dans ctx.stage. */
+  /** Fenêtre "classique" façon boite de dialogue système, stylée par OS : rend la coquille
+   *  (fond, bordure, éventuelle barre de titre) et renvoie où poser le contenu (titre, champ,
+   *  liste de messages en mode chat, boutons). */
+  function dialogChrome(c, name, titleText) {
+    if (name === 'windows') {
+      const card = c.el('div', 'width:min(86vw,420px);background:#f0f0f0;border:1px solid #888;' +
+        'box-shadow:2px 2px 10px rgba(0,0,0,.4);font-family:"Segoe UI",sans-serif;overflow:hidden;');
+      const header = c.el('div', 'background:#0a5eb5;color:#fff;font-size:14px;font-weight:600;' +
+        'padding:6px 10px;display:flex;align-items:center;gap:6px;');
+      header.append(c.el('span', 'font-size:13px;', '🔒'), c.el('span', null, titleText || 'Vérification'));
+      const mount = c.el('div', 'padding:16px;color:#1a1a1a;');
+      card.append(header, mount);
+      c.stage.append(card);
+      return { card, mount };
+    }
+    if (name === 'mac') {
+      const card = c.el('div', 'width:min(84vw,360px);background:rgba(246,246,246,.98);color:#1a1a1a;' +
+        'border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.5);padding:20px 18px;' +
+        'font-family:-apple-system,sans-serif;text-align:center;');
+      const header = c.el('div', 'font-size:15px;font-weight:700;margin-bottom:10px;', titleText || 'Vérification');
+      const mount = c.el('div', 'display:flex;flex-direction:column;align-items:center;gap:10px;');
+      card.append(header, mount);
+      c.stage.append(card);
+      return { card, mount };
+    }
+    if (name === 'android') {
+      const card = c.el('div', 'width:min(86vw,380px);background:#fff;color:#1c1b1f;border-radius:20px;' +
+        'box-shadow:0 10px 40px rgba(0,0,0,.45);padding:20px 20px 14px;font-family:Roboto,sans-serif;');
+      const header = c.el('div', 'font-size:17px;font-weight:600;margin-bottom:12px;', titleText || 'Vérification');
+      const mount = c.el('div', 'display:flex;flex-direction:column;gap:10px;');
+      card.append(header, mount);
+      c.stage.append(card);
+      return { card, mount };
+    }
+    // iphone
+    const card = c.el('div', 'width:min(80vw,320px);background:rgba(70,70,80,.72);' +
+      '-webkit-backdrop-filter:blur(28px) saturate(1.6);backdrop-filter:blur(28px) saturate(1.6);' +
+      'border:1px solid rgba(255,255,255,.18);border-radius:16px;overflow:hidden;color:#fff;' +
+      'font-family:-apple-system,sans-serif;text-align:center;');
+    const header = c.el('div', 'font-size:16px;font-weight:700;padding:16px 16px 4px;', titleText || 'Vérification');
+    const mount = c.el('div', 'padding:0 16px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;');
+    card.append(header, mount);
+    c.stage.append(card);
+    return { card, mount };
+  }
+
+  /** Dessine le piège demandé (shrink, swap, fakeclick, type) stylé selon l'OS, dans ctx.stage. */
   function renderTrap(kind, os, ctx) {
     const c = setup(ctx);
     const name = Object.prototype.hasOwnProperty.call(BUTTON_STYLE, os) ? os : 'windows';
     const mk = BUTTON_STYLE[name];
     const stacked = name === 'iphone'; // iOS empile ses boutons plutôt que côte à côte
+
+    if (kind === 'type') {
+      renderDialogueTrap(c, name, mk, ctx);
+      return;
+    }
 
     const title = c.el('div', 'font:600 4vmin system-ui,sans-serif;margin-bottom:3vmin;max-width:80vw;text-align:center;');
     title.textContent = ctx.text || 'Continuer ?';
@@ -336,27 +387,51 @@
       return;
     }
 
-    if (kind === 'type') {
-      // Fausse boite de dialogue : demande de taper quelque chose, le refuse plusieurs fois
-      // (comme si c'était "faux"/"invalide"), et renvoie chaque saisie à la régie en direct.
+    // fakeclick : le bouton réagit (s'enfonce) mais ne valide rien les premières fois
+    const PHRASES = ['Presque…', 'Toujours pas ?', 'Encore un petit effort…', 'Bon, d\'accord.'];
+    const ok = mk(c.doc, okLabel, true);
+    box.append(ok);
+    let tries = 0;
+    ok.addEventListener('click', () => {
+      tries += 1;
+      ok.style.transform = 'scale(.94)';
+      setTimeout(() => { ok.style.transform = ''; }, 90);
+      if (tries < 4) { title.textContent = PHRASES[Math.min(tries - 1, PHRASES.length - 1)]; return; }
+      c.finish();
+    });
+    c.cancel(() => {});
+  }
+
+  const INPUT_STYLE = 'font:15px system-ui,sans-serif;padding:9px 11px;border-radius:6px;border:1px solid #999;' +
+    'width:100%;box-sizing:border-box;';
+
+  /** Fausse boite de dialogue "classique" (stylée par OS) : demande de taper quelque chose.
+   *  Deux modes :
+   *  - normal : refuse plusieurs fois (message différent à chaque tentative), puis révèle.
+   *  - chat (ctx.chat) : pas d'escalade automatique ; chaque saisie part vers la régie et
+   *    s'affiche comme une bulle, la régie peut répondre en direct (ctx.onChatReady expose
+   *    une API pour lui faire recevoir ces réponses), jusqu'à ce qu'elle mette fin au piège. */
+  function renderDialogueTrap(c, name, mk, ctx) {
+    const chat = !!ctx.chat;
+    const { mount } = dialogChrome(c, name, ctx.text || (chat ? 'Discussion' : 'Vérification de sécurité'));
+
+    const input = c.doc.createElement('input');
+    input.type = 'text';
+    input.placeholder = ctx.placeholder || 'Entrez la valeur demandée';
+    input.autocomplete = 'off';
+    input.style.cssText = INPUT_STYLE + (name === 'iphone' ? 'background:rgba(255,255,255,.12);color:#fff;border-color:rgba(255,255,255,.3);' : '');
+
+    const okLabel = ctx.button || 'OK';
+    const ok = mk(c.doc, okLabel, true);
+
+    if (!chat) {
+      const err = c.el('div', 'font:13px system-ui,sans-serif;color:#d32f2f;min-height:2.2em;text-align:center;');
+      if (name === 'iphone' || name === 'mac') err.style.color = '#ff8a8a';
+      const row = c.el('div', 'display:flex;gap:10px;align-items:center;justify-content:center;');
+      row.append(input, ok);
+      mount.append(row, err);
+
       const REJECT = ['Code invalide, réessaie.', 'Toujours pas bon…', 'Format incorrect.', 'Dernière tentative…'];
-      const input = c.doc.createElement('input');
-      input.type = 'text';
-      input.placeholder = ctx.placeholder || 'Entrez la valeur demandée';
-      input.autocomplete = 'off';
-      input.style.cssText = stacked
-        ? 'font:16px -apple-system,sans-serif;padding:11px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08);color:#fff;width:100%;box-sizing:border-box;margin-bottom:2vmin;'
-        : 'font:15px system-ui,sans-serif;padding:8px 12px;border-radius:4px;border:1px solid #999;min-width:220px;';
-      const err = c.el('div', 'font:13px system-ui,sans-serif;color:#ff6b6b;min-height:2.6em;max-width:80vw;text-align:center;margin-top:1.5vmin;');
-      const ok = mk(c.doc, okLabel, true);
-
-      if (stacked) {
-        box.append(input, ok); // iOS : champ puis bouton, empilés
-      } else {
-        box.append(input, ok);
-      }
-      c.stage.append(err);
-
       let tries = 0;
       const submit = () => {
         const val = String(input.value || '').slice(0, 300);
@@ -377,19 +452,43 @@
       return;
     }
 
-    // fakeclick : le bouton réagit (s'enfonce) mais ne valide rien les premières fois
-    const PHRASES = ['Presque…', 'Toujours pas ?', 'Encore un petit effort…', 'Bon, d\'accord.'];
-    const ok = mk(c.doc, okLabel, true);
-    box.append(ok);
-    let tries = 0;
-    ok.addEventListener('click', () => {
-      tries += 1;
-      ok.style.transform = 'scale(.94)';
-      setTimeout(() => { ok.style.transform = ''; }, 90);
-      if (tries < 4) { title.textContent = PHRASES[Math.min(tries - 1, PHRASES.length - 1)]; return; }
-      c.finish();
-    });
+    // Mode chat : liste de bulles + champ de saisie, pas d'escalade automatique.
+    const list = c.el('div', 'width:100%;max-height:34vh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;');
+    const row = c.el('div', 'display:flex;gap:8px;align-items:center;width:100%;');
+    row.append(input, ok);
+    mount.append(list, row);
+
+    const bubble = (from, text) => {
+      const mine = from === 'me';
+      const b = c.el('div', `max-width:85%;padding:7px 11px;border-radius:12px;font:14px system-ui,sans-serif;` +
+        `white-space:pre-wrap;word-break:break-word;align-self:${mine ? 'flex-end' : 'flex-start'};` +
+        (mine
+          ? 'background:#0a5eb5;color:#fff;'
+          : (name === 'iphone' || name === 'mac' ? 'background:rgba(255,255,255,.15);color:#fff;' : 'background:#e9e9ec;color:#1a1a1a;')));
+      b.textContent = text;
+      list.append(b);
+      list.scrollTop = list.scrollHeight;
+    };
+
+    const submit = () => {
+      const val = String(input.value || '').slice(0, 300);
+      if (!val) return;
+      bubble('me', val);
+      if (typeof ctx.onReply === 'function') ctx.onReply(val);
+      input.value = '';
+      input.focus();
+    };
+    ok.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    setTimeout(() => input.focus(), 50);
     c.cancel(() => {});
+
+    if (typeof ctx.onChatReady === 'function') {
+      ctx.onChatReady({
+        append: (text) => bubble('regie', text),
+        end: () => c.finish(),
+      });
+    }
   }
 
   /** Dessine l'écran demandé (Windows par défaut) et renvoie le nom réellement utilisé. */

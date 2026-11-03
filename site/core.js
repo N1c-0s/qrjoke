@@ -59,6 +59,7 @@
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
     'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'voice', 'clear',
+    'trapReply', 'trapEnd',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick', 'type']);
@@ -98,6 +99,7 @@
       os: OS_CHOICES.has(j.os) ? j.os : undefined,
       trap: TRAP_KINDS.has(j.trap) ? j.trap : undefined,
       placeholder: str(j.placeholder, 80),
+      chat: j.chat === true ? true : undefined,
       audio: audio(j.audio),
       image: image(j.image),
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
