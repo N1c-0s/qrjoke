@@ -69,7 +69,7 @@
     return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : undefined;
   };
   // Photo : uniquement une image JPEG/PNG/WebP en data URL, taille bornée (le broker refuse les gros messages).
-  const IMAGE_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+  const IMAGE_RE = /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
   const MAX_IMAGE = 400000;
   const image = (v) => (typeof v === 'string' && v.length <= MAX_IMAGE && IMAGE_RE.test(v) ? v : undefined);
   const color = (v) =>

@@ -3,25 +3,61 @@
     "id": "coucou",
     "label": "Coucou",
     "emoji": "👋",
-    "joke": { "type": "text", "emoji": "👋", "text": "Coucou !", "bg": "#111111", "fg": "#ffffff", "size": 12, "duration": 4 }
+    "joke": {
+      "type": "text",
+      "emoji": "👋",
+      "text": "Coucou !",
+      "bg": "#111111",
+      "fg": "#ffffff",
+      "size": 12,
+      "duration": 4
+    }
   },
   {
     "id": "wifi",
     "label": "Wi-Fi démissionnaire",
     "emoji": "📶",
-    "joke": { "type": "typewriter", "text": "Le Wi-Fi vient de démissionner.\nIl demande une augmentation.", "bg": "#0b1220", "fg": "#7dd3fc", "size": 6, "speed": 55, "duration": 10 }
+    "joke": {
+      "type": "typewriter",
+      "text": "Le Wi-Fi vient de démissionner.\nIl demande une augmentation.",
+      "bg": "#0b1220",
+      "fg": "#7dd3fc",
+      "size": 6,
+      "speed": 55,
+      "duration": 10
+    }
   },
   {
     "id": "observe",
     "label": "Je t'observe",
     "emoji": "👀",
-    "joke": { "type": "typewriter", "emoji": "👀", "text": "Je t'observe…\nÇa fait 10 minutes que tu n'as pas souri.", "bg": "#000000", "fg": "#ffffff", "size": 6, "speed": 70, "duration": 10 }
+    "joke": {
+      "type": "typewriter",
+      "emoji": "👀",
+      "text": "Je t'observe…\nÇa fait 10 minutes que tu n'as pas souri.",
+      "bg": "#000000",
+      "fg": "#ffffff",
+      "size": 6,
+      "speed": 70,
+      "duration": 10
+    }
   },
   {
     "id": "compte",
     "label": "Compte à rebours",
     "emoji": "⏳",
-    "joke": { "type": "countdown", "from": 5, "text": "Surprise !", "emoji": "🎉", "confetti": true, "sound": "horn", "bg": "#1e1b4b", "fg": "#ffffff", "size": 12, "duration": 8 }
+    "joke": {
+      "type": "countdown",
+      "from": 5,
+      "text": "Surprise !",
+      "emoji": "🎉",
+      "confetti": true,
+      "sound": "horn",
+      "bg": "#1e1b4b",
+      "fg": "#ffffff",
+      "size": 12,
+      "duration": 8
+    }
   },
   {
     "id": "humour",
@@ -30,7 +66,12 @@
     "joke": {
       "type": "loading",
       "text": "Installation de l'humour en cours…",
-      "steps": ["Téléchargement de la blague…", "Décompression du fou rire…", "Calibrage du sourire…", "Presque fini…"],
+      "steps": [
+        "Téléchargement de la blague…",
+        "Décompression du fou rire…",
+        "Calibrage du sourire…",
+        "Presque fini…"
+      ],
       "seconds": 9,
       "final": "Blague terminée ! 😄",
       "sound": "ding",
@@ -43,42 +84,104 @@
     "id": "bouton",
     "label": "Bouton OK qui fuit",
     "emoji": "🏃",
-    "joke": { "type": "runaway", "text": "Clique sur OK pour continuer", "button": "OK", "final": "Haha, tu as cru que c'était si simple ! 😂", "sound": "boing", "confetti": true, "bg": "#f8fafc", "fg": "#0f172a", "size": 6 }
+    "joke": {
+      "type": "runaway",
+      "text": "Clique sur OK pour continuer",
+      "button": "OK",
+      "final": "Haha, tu as cru que c'était si simple ! 😂",
+      "sound": "boing",
+      "confetti": true,
+      "bg": "#f8fafc",
+      "fg": "#0f172a",
+      "size": 6
+    }
   },
   {
     "id": "tremble",
     "label": "Tremblement de terre",
     "emoji": "🌋",
-    "joke": { "type": "shake", "text": "TREMBLEMENT DE TERRE !", "emoji": "🌋", "seconds": 5, "bg": "#7f1d1d", "fg": "#ffffff", "size": 9, "duration": 6 }
+    "joke": {
+      "type": "shake",
+      "text": "TREMBLEMENT DE TERRE !",
+      "emoji": "🌋",
+      "seconds": 5,
+      "bg": "#7f1d1d",
+      "fg": "#ffffff",
+      "size": 9,
+      "duration": 6
+    }
   },
   {
     "id": "envers",
     "label": "Tout à l'envers",
     "emoji": "🙃",
-    "joke": { "type": "flip", "emoji": "🙃", "text": "Euh… tout est à l'envers ?", "bg": "#0f172a", "fg": "#fde68a", "size": 8, "duration": 7 }
+    "joke": {
+      "type": "flip",
+      "emoji": "🙃",
+      "text": "Euh… tout est à l'envers ?",
+      "bg": "#0f172a",
+      "fg": "#fde68a",
+      "size": 8,
+      "duration": 7
+    }
   },
   {
     "id": "bravo",
     "label": "Confettis",
     "emoji": "🎊",
-    "joke": { "type": "confetti", "emoji": "🎊", "text": "Bravo, tu as gagné… rien du tout !", "seconds": 6, "sound": "horn", "bg": "#064e3b", "fg": "#ffffff", "size": 7, "duration": 8 }
+    "joke": {
+      "type": "confetti",
+      "emoji": "🎊",
+      "text": "Bravo, tu as gagné… rien du tout !",
+      "seconds": 6,
+      "sound": "horn",
+      "bg": "#064e3b",
+      "fg": "#ffffff",
+      "size": 7,
+      "duration": 8
+    }
   },
   {
     "id": "klaxon",
     "label": "Klaxon",
     "emoji": "📯",
-    "joke": { "type": "text", "emoji": "📯", "text": "TUUUUT !", "sound": "horn", "vibrate": true, "bg": "#facc15", "fg": "#111111", "size": 16, "duration": 3 }
+    "joke": {
+      "type": "text",
+      "emoji": "📯",
+      "text": "TUUUUT !",
+      "sound": "horn",
+      "vibrate": true,
+      "bg": "#facc15",
+      "fg": "#111111",
+      "size": 16,
+      "duration": 3
+    }
   },
   {
     "id": "triste",
     "label": "Trombone triste",
     "emoji": "😢",
-    "joke": { "type": "text", "emoji": "😢", "text": "Wah wah wah waaah…", "sound": "sad", "bg": "#1f2937", "fg": "#e5e7eb", "size": 9, "duration": 5 }
+    "joke": {
+      "type": "text",
+      "emoji": "😢",
+      "text": "Wah wah wah waaah…",
+      "sound": "sad",
+      "bg": "#1f2937",
+      "fg": "#e5e7eb",
+      "size": 9,
+      "duration": 5
+    }
   },
   {
     "id": "chut",
     "label": "Chut…",
     "emoji": "🤫",
-    "joke": { "type": "blackout", "text": "Chut… ne bouge plus.", "fg": "#6b7280", "size": 3, "duration": 8 }
+    "joke": {
+      "type": "blackout",
+      "text": "Chut… ne bouge plus.",
+      "fg": "#6b7280",
+      "size": 3,
+      "duration": 8
+    }
   }
 ]

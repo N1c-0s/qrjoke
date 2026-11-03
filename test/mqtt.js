@@ -95,7 +95,12 @@ async function main() {
     // --- Blagues du catalogue (et site/jokes.json identique à la source du serveur local) ---
     const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'site', 'jokes.json'), 'utf8'));
     const source = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'jokes.json'), 'utf8'));
-    assert.deepStrictEqual(catalog, source, 'site/jokes.json diffère de jokes.json');
+    // site/jokes.json peut ajouter des blagues réservées à Netlify (image, oserror, trap),
+    // mais doit reprendre à l'identique tout ce qui est dans jokes.json (catalogue partagé avec la version locale).
+    const byId = new Map(catalog.map((item) => [item.id, item]));
+    for (const item of source) {
+      assert.deepStrictEqual(byId.get(item.id), item, `site/jokes.json diffère de jokes.json pour "${item.id}"`);
+    }
     const before = A.log.jokes.length;
     for (const item of catalog) {
       const r = await remote.send('42', item.joke);
