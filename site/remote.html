@@ -118,6 +118,17 @@
   </section>
 
   <section>
+    <h2>Message vocal</h2>
+    <div class="row">
+      <button id="voiceRec" type="button">🎙️ Enregistrer</button>
+      <span id="voiceTime" class="dim">0:00</span>
+      <audio id="voicePrev" controls hidden style="height:34px"></audio>
+      <button id="voiceGo" class="primary" type="button" disabled>Envoyer la voix</button>
+    </div>
+    <p class="dim" style="margin:8px 0 0">Ta voix est enregistrée ici, compressée, puis envoyée : elle joue directement sur l'écran ciblé (haut-parleurs), pas de micro activé côté écran.</p>
+  </section>
+
+  <section>
     <h2>Pièges de bouton</h2>
     <div class="row">
       <select id="trapKind" aria-label="Piège">
@@ -470,6 +481,69 @@
       final: $('osFinal').value.trim() || undefined,
       duration: seconds + 20, // retour automatique à l'écran d'attente après la révélation
     }, 'Erreur système');
+  });
+
+  /* ----- Message vocal : enregistrement micro CÔTÉ RÉGIE, envoyé à l'écran qui le joue ----- */
+  let mediaRecorder = null, voiceChunks = [], voiceBlob = null, voiceTimer = null, voiceStart = 0;
+  const voiceRecBtn = $('voiceRec'), voiceGoBtn = $('voiceGo'), voiceTimeEl = $('voiceTime'), voicePrev = $('voicePrev');
+  const MAX_VOICE_MS = 12000; // le fichier doit rester sous la limite du broker
+
+  function fmtTime(ms) {
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  async function startVoiceRec() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      toast('Micro indisponible sur ce navigateur.', true);
+      return;
+    }
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      toast('Micro refusé.', true);
+      return;
+    }
+    voiceChunks = [];
+    mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '' });
+    mediaRecorder.addEventListener('dataavailable', (e) => { if (e.data.size) voiceChunks.push(e.data); });
+    mediaRecorder.addEventListener('stop', () => {
+      stream.getTracks().forEach((t) => t.stop());
+      voiceBlob = new Blob(voiceChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      voicePrev.src = URL.createObjectURL(voiceBlob);
+      voicePrev.hidden = false;
+      voiceGoBtn.disabled = voiceBlob.size === 0;
+    });
+    mediaRecorder.start();
+    voiceStart = Date.now();
+    voiceRecBtn.textContent = '⏹️ Arrêter';
+    voiceTimer = setInterval(() => {
+      const el = Date.now() - voiceStart;
+      voiceTimeEl.textContent = fmtTime(el);
+      if (el >= MAX_VOICE_MS) stopVoiceRec();
+    }, 200);
+  }
+  function stopVoiceRec() {
+    clearInterval(voiceTimer);
+    voiceRecBtn.textContent = '🎙️ Enregistrer';
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+  voiceRecBtn.addEventListener('click', () => {
+    if (mediaRecorder && mediaRecorder.state === 'recording') stopVoiceRec();
+    else startVoiceRec();
+  });
+  voiceGoBtn.addEventListener('click', () => {
+    if (!voiceBlob) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (reader.result.length > Core.MAX_AUDIO) {
+        toast('Enregistrement trop long pour le broker, réessaie plus court.', true);
+        return;
+      }
+      send({ type: 'voice', audio: reader.result }, 'Message vocal');
+    };
+    reader.readAsDataURL(voiceBlob);
   });
 
   $('trapGo').addEventListener('click', () => {

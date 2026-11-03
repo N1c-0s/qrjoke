@@ -462,6 +462,23 @@
       confetti((j.seconds || 5) * 1000);
     },
 
+    voice: (j) => {
+      if (!j.audio) return;
+      const player = document.createElement('audio');
+      player.src = j.audio;
+      player.autoplay = true;
+      player.style.display = 'none';
+      stage.append(player);
+      try { const p = player.play(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* lecture auto bloquée : le son se débloque déjà au 1er geste */ }
+      cancelFns.push(() => { try { player.pause(); } catch (e) { /* rien */ } });
+      if (j.text) stage.append(big(j.text, j.size || 6));
+      else {
+        const d = big('🔊', 14);
+        d.style.animation = 'fadein .4s ease-out';
+        stage.append(d);
+      }
+    },
+
     trap: (j) => {
       stage.style.cursor = 'default';
       const os = Core.resolveOS(j.os, detectedOS);

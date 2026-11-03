@@ -232,6 +232,20 @@ async function main() {
     assert(document.getElementById('code').value === '07');
   }
 
+  // Message vocal : seules les data URL audio bornées sont acceptées, lues via <audio>
+  {
+    const Core = require('../site/core.js');
+    const ok = 'data:audio/webm;base64,GkXfo59C';
+    assert.strictEqual(Core.sanitize({ type: 'voice', audio: ok }).audio, ok);
+    for (const bad of ['http://x/y.mp3', 'javascript:alert(1)', 'data:text/html;base64,PGI+', 'data:audio/webm;base64,' + 'A'.repeat(Core.MAX_AUDIO), 42]) {
+      assert.strictEqual(Core.sanitize({ type: 'voice', audio: bad }).audio, undefined, 'audio refusé : ' + String(bad).slice(0, 30));
+    }
+    const { stage } = await runReceiver('windows', { type: 'voice', audio: ok, text: 'Coucou' });
+    await until(() => stage.querySelector('audio'), 3000, 'lecteur audio ajouté');
+    assert.strictEqual(stage.querySelector('audio').getAttribute('src'), ok);
+    assert(stage.textContent.includes('Coucou'));
+  }
+
   // Pièges de bouton : chaque piège se termine par la révélation, stylé selon l'OS détecté
   {
     const { stage } = await runReceiver('windows', { type: 'trap', trap: 'shrink', text: 'Continuer ?', final: 'Gagné !' });

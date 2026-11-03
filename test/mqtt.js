@@ -134,6 +134,13 @@ async function main() {
     assert.strictEqual(list.length, 1, 'une présence invalide est apparue');
     raw.end(true);
 
+    // --- Message vocal : traverse le broker, l'écran le lit via <audio> (côté régie seulement) ---
+    const bigAudio = 'data:audio/webm;base64,' + 'A'.repeat(core.MAX_AUDIO - 30);
+    const nVoice = A.log.jokes.length;
+    assert.deepStrictEqual(await remote.send('42', { type: 'voice', audio: bigAudio }), { ok: true, count: 1 });
+    await until(() => A.log.jokes.length === nVoice + 1, 5000, 'message vocal reçu');
+    assert.strictEqual(A.log.jokes[nVoice].audio, bigAudio);
+
     // --- Deuxième écran (smartphone) : apparaît code 07, reçoit seulement ce qui le concerne ---
     const B = mkReceiver('07', { kind: 'mobile', label: 'Smartphone · Safari' });
     assert.deepStrictEqual(await B.r.start(), { ok: true });

@@ -58,7 +58,7 @@
 
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
-    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'clear',
+    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'voice', 'clear',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick']);
@@ -72,6 +72,10 @@
   const IMAGE_RE = /^data:image\/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
   const MAX_IMAGE = 400000;
   const image = (v) => (typeof v === 'string' && v.length <= MAX_IMAGE && IMAGE_RE.test(v) ? v : undefined);
+  // Message vocal : enregistré dans la régie, joué sur l'écran. Même logique que la photo (taille bornée).
+  const AUDIO_RE = /^data:audio\/(webm|ogg|mp4|mpeg|wav);base64,[A-Za-z0-9+/]+={0,2}$/;
+  const MAX_AUDIO = 400000;
+  const audio = (v) => (typeof v === 'string' && v.length <= MAX_AUDIO && AUDIO_RE.test(v) ? v : undefined);
   const color = (v) =>
     typeof v === 'string' && /^(#[0-9a-fA-F]{3,8}|[a-zA-Z]{3,20})$/.test(v) ? v : undefined;
 
@@ -93,6 +97,7 @@
       duration: num(j.duration, 0, 3600),
       os: OS_CHOICES.has(j.os) ? j.os : undefined,
       trap: TRAP_KINDS.has(j.trap) ? j.trap : undefined,
+      audio: audio(j.audio),
       image: image(j.image),
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
       vibrate: j.vibrate === true ? true : undefined,
@@ -416,7 +421,7 @@
   }
 
   return {
-    DEFAULT_BROKER, DEFAULT_ROOM, ID_RE, CODE_RE, ROOM_RE, STALE_MS, MAX_IMAGE,
+    DEFAULT_BROKER, DEFAULT_ROOM, ID_RE, CODE_RE, ROOM_RE, STALE_MS, MAX_IMAGE, MAX_AUDIO,
     randomId, normRoom, sanitize, detectOS, resolveOS, receiverUrl, remoteUrl,
     createReceiver, createRemote,
   };
