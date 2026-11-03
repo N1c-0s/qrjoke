@@ -227,6 +227,40 @@
     </form>
   </section>
 
+  <section id="pranksPanel">
+    <h2>🎭 11 pranks interactifs</h2>
+    <p class="dim">Choisis une cible en haut de la régie. Tous les effets restent dans la page web du destinataire (pas d'accès réseau, caméra ou cookies).</p>
+    <div class="row" style="margin-bottom:12px">
+      <label>Intensité <input type="range" id="prankIntensity" min="1" max="100" value="55"></label>
+      <output id="prankIntensityValue">55 %</output>
+      <label>Durée (secondes, 0 = manuel) <input type="number" id="prankDuration" min="0" max="3600" value="30" style="width:90px"></label>
+    </div>
+    <div id="prankButtons" class="grid"></div>
+  </section>
+
+  <section id="customPanel">
+    <h2>🧪 Studio custom · JavaScript</h2>
+    <p class="dim">Écris ton propre effet pour la page distante. Ton script s'exécute dans un cadre isolé (iframe sandbox), sans accès au réseau, aux cookies ni à la caméra/micro. Variable disponible : <code>app</code> (conteneur HTML). Le script est envoyé à la cible sélectionnée.</p>
+    <div class="row" style="margin-bottom:10px">
+      <select id="customExamples" aria-label="Exemples de scripts">
+        <option value="">Choisir un exemple…</option>
+        <option value="rain">Pluie d'emojis</option>
+        <option value="clock">Compte à rebours</option>
+        <option value="button">Bouton farceur</option>
+      </select>
+      <button id="customSave" type="button">💾 Sauvegarder en local</button>
+      <button id="customReset" type="button">Réinitialiser</button>
+    </div>
+    <textarea id="customCode" spellcheck="false" style="min-height:230px;background:#090e19;color:#b8f7cc;font:13px/1.5 ui-monospace,Consolas,monospace;width:100%;box-sizing:border-box;" aria-label="Code JavaScript personnalisé"></textarea>
+    <div class="row" style="margin-top:10px">
+      <label>Durée (secondes) <input id="customDuration" type="number" min="0" max="3600" value="30" style="width:85px"></label>
+      <button id="customSend" class="primary" type="button">🚀 Envoyer le JavaScript</button>
+      <button id="customPreview" type="button">👁️ Prévisualiser ici</button>
+      <button id="customPreviewStop" type="button">Fermer l'aperçu</button>
+    </div>
+    <div id="customPreviewBox" style="display:none;position:relative;aspect-ratio:16/9;max-height:380px;background:#070a18;margin-top:12px;border-radius:12px;overflow:hidden"></div>
+  </section>
+
   <section>
     <h2>📷 Caméra surprise (avec autorisation)</h2>
     <p class="dim">Choisis un écran individuel (pas « Tous les écrans »). La personne voit une demande explicite et doit l'accepter sur son appareil (en plus de la permission caméra du navigateur) — rien n'est jamais activé en silence. Vidéo en direct via WebRTC (P2P), sans enregistrement.</p>
@@ -259,6 +293,8 @@
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/core.js"></script>
 <script src="/camera.js"></script>
+<script src="/pranks.js"></script>
+<script src="/custom.js"></script>
 <script>
 (() => {
   'use strict';
@@ -460,6 +496,66 @@
     if (res.ok) toast(`${label || 'Envoyé'} → ${res.count} écran${res.count > 1 ? 's' : ''}`);
     else toast(ERRORS[res.error] || 'Échec de l\'envoi.', true);
   }
+
+  /* ----- 11 pranks interactifs + atelier JavaScript (sandboxé) ----- */
+  const intensityEl = $('prankIntensity');
+  intensityEl.addEventListener('input', () => { $('prankIntensityValue').textContent = intensityEl.value + ' %'; });
+  for (const [id, emoji, name] of QrJokePranks.definitions) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = emoji + ' ' + name;
+    button.addEventListener('click', () => send({
+      type: 'prank', prank: id, intensity: Number(intensityEl.value), duration: Number($('prankDuration').value) || 0,
+    }, name));
+    $('prankButtons').append(button);
+  }
+
+  const CUSTOM_EXAMPLES = {
+    rain: `app.textContent = '🌧️ Pluie de canards !';
+app.style.fontSize = '38px';
+setInterval(() => {
+  const d = document.createElement('div');
+  d.textContent = '🦆'; d.style.cssText = 'position:absolute;top:-40px;left:' + Math.random() * 95 + '%;font-size:36px';
+  document.body.append(d);
+  d.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(110vh)' }], { duration: 2500, fill: 'forwards' }).onfinish = () => d.remove();
+}, 180);`,
+    clock: `let n = 10;
+app.style.fontSize = 'min(25vw,160px)';
+app.textContent = n;
+const t = setInterval(() => { n--; app.textContent = n > 0 ? n : '🎉 SURPRISE !'; if (n <= 0) clearInterval(t); }, 1000);`,
+    button: `const b = document.createElement('button');
+b.textContent = 'Attrape-moi !';
+b.style.cssText = 'padding:20px;background:#ff39d4;border:0;border-radius:15px;font-size:26px;position:relative;';
+app.replaceChildren(b);
+b.onpointerenter = () => { b.style.position = 'absolute'; b.style.left = Math.random() * 70 + '%'; b.style.top = Math.random() * 70 + '%'; };
+b.onclick = () => { app.textContent = 'Bravo, tu as gagné ! 🎉'; };`,
+  };
+  const DEFAULT_CUSTOM = `// Variable disponible : app (un élément HTML)
+app.textContent = '🎉 Tu viens de te faire QrJoker !';
+app.style.cssText = 'font-size:clamp(24px,6vw,70px);color:#ff39d4;text-shadow:0 0 25px #a020f0';`;
+  $('customCode').value = store.get('qj-custom-code') || DEFAULT_CUSTOM;
+  $('customExamples').addEventListener('change', () => {
+    const v = $('customExamples').value;
+    if (CUSTOM_EXAMPLES[v]) $('customCode').value = CUSTOM_EXAMPLES[v];
+  });
+  $('customSave').addEventListener('click', () => { store.set('qj-custom-code', $('customCode').value); toast('Script sauvegardé dans ce navigateur'); });
+  $('customReset').addEventListener('click', () => { $('customCode').value = DEFAULT_CUSTOM; toast('Éditeur réinitialisé'); });
+  $('customSend').addEventListener('click', () => {
+    const code = $('customCode').value;
+    if (!code.trim() || code.length > 12000) { toast('Script vide ou trop long (maximum 12 000 caractères).', true); return; }
+    send({ type: 'custom', code, duration: Number($('customDuration').value) || 0 }, 'Prank personnalisé');
+  });
+  let previewCleanup = null;
+  function closePreview() {
+    if (previewCleanup) { previewCleanup(); previewCleanup = null; }
+    $('customPreviewBox').style.display = 'none';
+  }
+  $('customPreviewStop').addEventListener('click', closePreview);
+  $('customPreview').addEventListener('click', () => {
+    closePreview();
+    $('customPreviewBox').style.display = 'block';
+    previewCleanup = QrJokeCustom.run($('customPreviewBox'), $('customCode').value.slice(0, 12000));
+  });
 
   /* ----- Blagues prédéfinies (jokes.json) ----- */
   let catalog = [];

@@ -133,11 +133,15 @@ async function main() {
   const coreSrc = fs.readFileSync(path.join(SITE, 'core.js'), 'utf8');
   const screensSrc = fs.readFileSync(path.join(SITE, 'screens.js'), 'utf8');
   const cameraSrc = fs.readFileSync(path.join(SITE, 'camera.js'), 'utf8');
+  const pranksSrc = fs.readFileSync(path.join(SITE, 'pranks.js'), 'utf8');
+  const customSrc = fs.readFileSync(path.join(SITE, 'custom.js'), 'utf8');
   const indexHtml = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8')
     .replace('<script src="/vendor/mqtt.min.js"></script>', '')
     .replace('<script src="/core.js"></script>', () => `<script>${coreSrc}</script>`)
     .replace('<script src="/screens.js"></script>', () => `<script>${screensSrc}</script>`)
-    .replace('<script src="/camera.js"></script>', () => `<script>${cameraSrc}</script>`);
+    .replace('<script src="/camera.js"></script>', () => `<script>${cameraSrc}</script>`)
+    .replace('<script src="/pranks.js"></script>', () => `<script>${pranksSrc}</script>`)
+    .replace('<script src="/custom.js"></script>', () => `<script>${customSrc}</script>`);
 
   async function runReceiver(uaKey, joke, { touch = 0, path = '/42', typed = null } = {}) {
     const handlers = {}; // ceux du 1er client (le récepteur principal rx) : c'est lui que les tests pilotent
@@ -354,6 +358,32 @@ async function main() {
     const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
     deliver({ type: 'text', text: 'Après la demande caméra' });
     await until(() => stage.textContent.includes('Après la demande caméra'), 3000, 'la scène suivante remplace bien la demande caméra');
+  }
+
+  // 11 pranks interactifs : s'affichent, se nettoient (timers/listeners) quand une autre blague arrive
+  {
+    const { stage, handlers, code } = await runReceiver('windows', { type: 'prank', prank: 'possessed', intensity: 50 });
+    await until(() => stage.textContent.includes('SIGNAL INSTABLE'), 3000, 'piège "possessed" affiché');
+    const deliver = (joke) => handlers.message(`qrjoke/qrjoke-main/${code}/joke`, JSON.stringify({ type: 'joke', from: 'regie', joke }));
+    deliver({ type: 'text', text: 'Après le prank' });
+    await until(() => stage.textContent.includes('Après le prank'), 3000, 'un autre message remplace bien le prank');
+    assert(!stage.textContent.includes('SIGNAL INSTABLE'), 'les restes du prank doivent avoir disparu');
+  }
+  {
+    // Un nom de prank inconnu ne doit jamais planter (pranks.js a une branche "else" dédiée).
+    const { stage } = await runReceiver('windows', { type: 'prank', prank: 'nimportequoi' });
+    await until(() => stage.textContent.includes('Prank inconnu'), 3000, 'repli propre sur un nom de prank inconnu');
+  }
+
+  // Studio custom : le script est posé dans une iframe sandboxée, jamais exécuté dans la page QrJoke elle-même
+  {
+    const { stage } = await runReceiver('windows', { type: 'custom', code: "app.textContent = 'coucou';" });
+    await until(() => stage.querySelector('iframe'), 3000, 'iframe du studio custom absente');
+    const frame = stage.querySelector('iframe');
+    assert.strictEqual(frame.getAttribute('sandbox'), 'allow-scripts', 'doit être sandboxée sans allow-same-origin (pas d\'accès à la page QrJoke)');
+    assert(frame.srcdoc.includes('Content-Security-Policy'), 'doit poser une CSP restrictive dans le document chargé');
+    assert(frame.srcdoc.includes("connect-src 'none'"), 'le script envoyé ne doit avoir aucun accès réseau');
+    assert(frame.srcdoc.includes('coucou'), 'le code envoyé doit se retrouver (échappé) dans le document de l\'iframe');
   }
 
   // Fausse mise à jour interminable : la barre avance (et parfois redescend), mais ne finit jamais seule

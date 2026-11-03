@@ -84,6 +84,8 @@
 <script src="/core.js"></script>
 <script src="/screens.js"></script>
 <script src="/camera.js"></script>
+<script src="/pranks.js"></script>
+<script src="/custom.js"></script>
 <script>
 (() => {
   'use strict';
@@ -592,6 +594,14 @@
       return;
     }
     if (j.type === 'camera') { showCameraRequest(); return; }
+    if (j.type === 'prank' || j.type === 'custom') {
+      activeChat = null;
+      reset();
+      const cleanup = j.type === 'prank' ? QrJokePranks.run(stage, j) : QrJokeCustom.run(stage, j.code);
+      cancelFns.push(cleanup);
+      if (j.duration > 0) clearTimer = setTimeout(showWaiting, j.duration * 1000);
+      return;
+    }
     if (j.type === 'alert') {
       // Juste une alerte native : ne touche pas à ce qui est déjà affiché.
       try { window.alert(j.text || 'Alerte !'); } catch (e) { /* alert() bloqué (ex. iframe) : rien à faire */ }
