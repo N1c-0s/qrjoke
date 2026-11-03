@@ -133,15 +133,19 @@ async function main() {
   const coreSrc = fs.readFileSync(path.join(SITE, 'core.js'), 'utf8');
   const screensSrc = fs.readFileSync(path.join(SITE, 'screens.js'), 'utf8');
   const cameraSrc = fs.readFileSync(path.join(SITE, 'camera.js'), 'utf8');
+  const audioSrc = fs.readFileSync(path.join(SITE, 'audio.js'), 'utf8');
   const pranksSrc = fs.readFileSync(path.join(SITE, 'pranks.js'), 'utf8');
   const customSrc = fs.readFileSync(path.join(SITE, 'custom.js'), 'utf8');
+  const v3ReceiverSrc = fs.readFileSync(path.join(SITE, 'v3-receiver.js'), 'utf8');
   const indexHtml = fs.readFileSync(path.join(SITE, 'index.html'), 'utf8')
     .replace('<script src="/vendor/mqtt.min.js"></script>', '')
     .replace('<script src="/core.js"></script>', () => `<script>${coreSrc}</script>`)
     .replace('<script src="/screens.js"></script>', () => `<script>${screensSrc}</script>`)
     .replace('<script src="/camera.js"></script>', () => `<script>${cameraSrc}</script>`)
+    .replace('<script src="/audio.js"></script>', () => `<script>${audioSrc}</script>`)
     .replace('<script src="/pranks.js"></script>', () => `<script>${pranksSrc}</script>`)
-    .replace('<script src="/custom.js"></script>', () => `<script>${customSrc}</script>`);
+    .replace('<script src="/custom.js"></script>', () => `<script>${customSrc}</script>`)
+    .replace('<script src="/v3-receiver.js"></script>', () => `<script>${v3ReceiverSrc}</script>`);
 
   async function runReceiver(uaKey, joke, { touch = 0, path = '/42', typed = null } = {}) {
     const handlers = {}; // ceux du 1er client (le récepteur principal rx) : c'est lui que les tests pilotent

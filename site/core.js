@@ -60,10 +60,12 @@
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
     'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'voice', 'clear',
     'trapReply', 'trapEnd', 'update', 'alert', 'camera', 'prank', 'custom',
+    'microphone', 'v3sound', 'v3chaos',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
   const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick', 'type']);
-  const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing', 'alarm']);
+  const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing', 'alarm', 'duck', 'laser', 'robot', 'alert', 'win', 'stop']);
+  const V3_CHAOS_ACTIONS = new Set(['start', 'update', 'stop']);
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
   const num = (v, min, max) => {
     const n = Number(v);
@@ -111,6 +113,11 @@
       steps: Array.isArray(j.steps)
         ? j.steps.slice(0, 12).map((s) => str(s, 120)).filter(Boolean)
         : undefined,
+      // v3chaos : secoue/dégrade l'affichage de l'écran (DOM only, aucune action hors du cadre QrJoke).
+      action: V3_CHAOS_ACTIONS.has(j.action) ? j.action : undefined,
+      shake: num(j.shake, 0, 100),
+      glitch: num(j.glitch, 0, 100),
+      zoom: num(j.zoom, 0, 100),
     };
   }
 

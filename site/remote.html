@@ -10,6 +10,10 @@
     --bg: #0f1218; --card: #181d27; --line: #2a3140; --text: #e8ebf2; --dim: #8b93a7;
     --accent: #6366f1; --ok: #22c55e; --bad: #ef4444;
   }
+  body[data-theme="cyber"] { --bg: #090d17; --card: #141c2c; --line: #29354a; --text: #e5e7eb; --dim: #94a3b8; --accent: #e62e4b; }
+  body[data-theme="matrix"] { --bg: #030d09; --card: #0a1b13; --line: #245438; --text: #c8ffe0; --dim: #75a98b; --accent: #1ba85a; }
+  body[data-theme="neon"] { --bg: #100b22; --card: #211735; --line: #493364; --text: #f4eaff; --dim: #b9a2d4; --accent: #aa43ed; }
+  body[data-theme="amber"] { --bg: #151007; --card: #261c0f; --line: #63421c; --text: #ffe8b4; --dim: #c1a271; --accent: #d68a21; }
   [hidden] { display: none !important; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -46,6 +50,37 @@
   }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   #toast.bad { border-color: var(--bad); color: #fecaca; }
+
+  /* ----- V3 : navigation par onglets ----- */
+  #app { max-width: none; margin: 0 0 0 232px; padding: 22px; min-height: 100vh; }
+  #app > header { position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 12px 0; border-bottom: 1px solid var(--line); }
+  #v3nav { position: fixed; inset: 0 auto 0 0; width: 216px; background: #101624; border-right: 1px solid var(--line); padding: 20px 12px; z-index: 10; overflow-y: auto; }
+  #v3nav .brand { font-size: 20px; font-weight: 900; color: var(--accent); letter-spacing: 1px; margin: 0 10px 24px; }
+  #v3nav button { display: block; width: 100%; text-align: left; margin: 5px 0; padding: 13px; background: transparent; border: 1px solid transparent; }
+  #v3nav button.active { background: #2a1420; border-color: var(--accent); color: #fff; }
+  #v3nav .kill { margin-top: 22px; background: #a91c35; color: #fff; font-weight: 800; }
+  #app > section { display: none; max-width: 1240px; }
+  #app > section.v3visible { display: block; }
+  #v3mobile { display: none; }
+  .v3cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .v3tile { background: #1c2639; border: 1px solid #344056; border-radius: 12px; padding: 14px; }
+  .v3tile strong { font-size: 24px; display: block; }
+  .v3label { color: var(--dim); font-size: 12px; }
+  .v3screen { background: #070b12; border: 1px solid #38465a; border-radius: 12px; min-height: 170px; display: grid; place-items: center; text-align: center; padding: 20px; }
+  .v3sound { min-width: 110px; padding: 13px; background: #253047; border-color: #45516b; }
+  .v3field { display: grid; gap: 5px; margin: 12px 0; }
+  .v3field input, .v3field select { width: 100%; max-width: 420px; }
+  .v3script { min-height: 260px; font: 13px/1.6 ui-monospace, Consolas, monospace; background: #080d16; color: #a7ffc1; tab-size: 2; }
+  .v3preview { width: 100%; height: 240px; background: #080b12; border: 1px solid #334155; border-radius: 10px; }
+  @media (max-width: 750px) {
+    #v3nav { display: none; }
+    #app { margin: 0; padding: 12px 12px 88px; }
+    #app > header { flex-wrap: wrap; }
+    #v3mobile { position: fixed; bottom: 0; left: 0; right: 0; z-index: 20; display: flex; overflow-x: auto; background: #101624; border-top: 1px solid var(--line); padding: 7px; gap: 5px; }
+    #v3mobile button { font-size: 11px; flex: 1; min-width: 65px; padding: 9px 5px; }
+    #v3mobile button.active { background: #2a1420; border-color: var(--accent); }
+    .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
 </style>
 </head>
 <body>
@@ -53,6 +88,13 @@
 <main id="app">
   <header>
     <h1>QrJoke · Régie</h1>
+    <label class="dim">Thème <select id="themePicker" aria-label="Thème graphique">
+      <option value="indigo">Indigo (défaut)</option>
+      <option value="cyber">Cyber Rouge</option>
+      <option value="matrix">Matrix Vert</option>
+      <option value="neon">Neon Violet</option>
+      <option value="amber">Terminal Ambre</option>
+    </select></label>
     <span id="status" class="pill">Connexion…</span>
   </header>
 
@@ -274,6 +316,18 @@
   </section>
 
   <section>
+    <h2>🎤 Retour microphone (avec autorisation)</h2>
+    <p class="dim">Choisis un écran individuel. La personne voit une demande explicite et doit l'accepter sur son appareil (en plus de la permission micro du navigateur). Flux audio en direct via WebRTC (P2P), sans enregistrement.</p>
+    <div class="row" style="margin-top:8px">
+      <button id="microStart" class="primary" type="button">Demander le microphone</button>
+      <button id="microListen" type="button">🔊 Écouter</button>
+      <button id="microStop" type="button">Arrêter le microphone</button>
+      <span id="microRemoteStatus" class="dim">Micro inactif</span>
+    </div>
+    <audio id="microRemoteAudio" autoplay playsinline controls style="display:block;width:100%;max-width:640px;margin-top:12px"></audio>
+  </section>
+
+  <section>
     <button id="clear" class="danger" type="button">Retour à l'écran d'attente</button>
   </section>
 
@@ -285,6 +339,83 @@
     </div>
     <p class="dim" style="margin:8px 0 0">Par défaut tout le monde partage le salon commun, d'où les codes à 2 chiffres. Si un autre utilisateur te gêne, choisis un nom de salon à toi : les liens générés ci-dessus l'incluent (<code>?room=</code>).</p>
   </section>
+
+  <section id="v3dashboard">
+    <h2>⚡ Vue générale</h2>
+    <div class="v3cards">
+      <div class="v3tile"><strong id="v3count">0</strong><span class="v3label">Appareils connectés</span></div>
+      <div class="v3tile"><strong>11+</strong><span class="v3label">Pranks interactifs</span></div>
+      <div class="v3tile"><strong>MQTT</strong><span class="v3label">Connexion temps réel</span></div>
+    </div>
+    <p class="dim">Utilise Appairage pour sélectionner une cible, puis Blagues, Système, Médias ou Pranks avancés.</p>
+    <div class="row">
+      <button class="danger" id="v3kill" type="button">■ ARRÊT GÉNÉRAL</button>
+      <button id="v3goPranks" type="button">Ouvrir les pranks</button>
+    </div>
+    <div class="v3screen" id="v3live">En attente de commandes. Aperçu reconstitué des effets QrJoke (pas une capture d'écran).</div>
+  </section>
+
+  <section id="v3chaos">
+    <h2>◈ Console de chaos</h2>
+    <p class="dim">Effets de page combinables (tremblement, filtre visuel, zoom), contrôlés à distance. Les effets restent limités à la page QrJoke du destinataire.</p>
+    <div class="v3field"><label>Secousses <output id="v3shakeVal">30</output>%</label><input id="v3shake" type="range" min="0" max="100" value="30"></div>
+    <div class="v3field"><label>Glitch <output id="v3glitchVal">40</output>%</label><input id="v3glitch" type="range" min="0" max="100" value="40"></div>
+    <div class="v3field"><label>Zoom <output id="v3zoomVal">10</output>%</label><input id="v3zoom" type="range" min="0" max="100" value="10"></div>
+    <div class="row">
+      <button class="primary" id="v3chaosStart" type="button">▶ Activer</button>
+      <button id="v3chaosUpdate" type="button">↻ Actualiser</button>
+      <button class="danger" id="v3chaosStop" type="button">■ Stop</button>
+    </div>
+  </section>
+
+  <section id="v3sounds">
+    <h2>♫ Soundboard</h2>
+    <p class="dim">Sons synthétiques générés dans le navigateur du destinataire (Web Audio), sans fichier ni micro.</p>
+    <div class="grid" id="v3soundGrid"></div>
+    <div class="row" style="margin-top:15px"><button class="danger" id="v3soundStop" type="button">■ Couper les sons</button></div>
+  </section>
+
+  <section id="v3nfc">
+    <h2>◉ Gestionnaire NFC / QR</h2>
+    <p class="dim">Écris l'URL ci-dessous dans un tag NFC (via une app comme NFC Tools) ou scanne le QR : le tag ouvre QrJoke et le jumelage reste volontaire, rien ne se connecte automatiquement au broker.</p>
+    <div class="v3field"><label>Nom du tag</label><input id="v3tag" value="tasse-01" maxlength="60"></div>
+    <div class="v3field"><label>Prank au démarrage (après jumelage, aucun lancement automatique pour l'instant)</label><select id="v3tagPrank"><option value="">Aucun, contrôle manuel</option></select></div>
+    <div class="row"><button id="v3tagSave" class="primary" type="button">Enregistrer le tag</button><button id="v3tagCopy" type="button">Copier l'URL</button></div>
+    <div id="v3tagUrl" style="word-break:break-all;margin:14px 0" class="dim"></div>
+    <img id="v3tagQr" alt="QR code du tag" width="160" height="160" style="background:white;padding:8px;border-radius:9px">
+    <div id="v3tagList" style="margin-top:15px"></div>
+  </section>
+
+  <section id="v3library">
+    <h2>▤ Bibliothèque de pranks</h2>
+    <input id="v3search" placeholder="Rechercher un prank…" aria-label="Rechercher" style="width:100%;margin-bottom:12px">
+    <div id="v3libraryGrid" class="grid"></div>
+    <p class="dim">Les favoris sont mémorisés localement sur cet appareil.</p>
+  </section>
+
+  <section id="v3studio">
+    <h2>⌘ Studio Custom V3</h2>
+    <p class="dim">Mêmes modèles que le studio principal, exécutés dans un cadre isolé (iframe sandbox, aucun accès réseau ni cookies). Ne colle pas de script provenant d'inconnus.</p>
+    <div class="row">
+      <select id="v3template"><option value="confetti">Confettis</option><option value="message">Message géant</option><option value="matrix">Pluie numérique</option></select>
+      <button id="v3loadTemplate" type="button">Charger modèle</button>
+      <button id="v3saveScript" type="button">Sauvegarder</button>
+    </div>
+    <textarea id="v3editor" class="v3script" spellcheck="false" aria-label="Code JavaScript personnalisé"></textarea>
+    <div class="row">
+      <button class="primary" id="v3previewBtn" type="button">▶ Prévisualiser</button>
+      <button id="v3sendScript" type="button">Envoyer à la cible</button>
+      <button class="danger" id="v3stopPreview" type="button">■ Stop aperçu</button>
+    </div>
+    <iframe id="v3previewFrame" class="v3preview" sandbox="allow-scripts" title="Prévisualisation isolée"></iframe>
+  </section>
+
+  <section id="v3mirror">
+    <h2>▣ Retour écran QrJoke</h2>
+    <p class="dim">Aperçu reconstitué des dernières commandes envoyées depuis cette régie. Ce n'est pas un partage vidéo de l'écran ou du bureau : aucune capture réelle n'est faite.</p>
+    <div class="v3screen" id="v3mirrorContent">Aucun prank envoyé depuis cette régie.</div>
+    <p id="v3mirrorTime" class="dim"></p>
+  </section>
 </main>
 
 <div id="toast" role="status"></div>
@@ -293,11 +424,25 @@
 <script src="/vendor/qrcode.min.js"></script>
 <script src="/core.js"></script>
 <script src="/camera.js"></script>
+<script src="/audio.js"></script>
 <script src="/pranks.js"></script>
 <script src="/custom.js"></script>
+<script src="/v3.js" defer></script>
 <script>
 (() => {
   'use strict';
+
+  // Thème graphique de la régie (purement visuel, mémorisé localement sur cet appareil).
+  const THEMES = ['indigo', 'cyber', 'matrix', 'neon', 'amber'];
+  const themePicker = document.getElementById('themePicker');
+  const savedTheme = localStorage.getItem('qj-admin-theme') || 'indigo';
+  themePicker.value = THEMES.includes(savedTheme) ? savedTheme : 'indigo';
+  if (themePicker.value !== 'indigo') document.body.dataset.theme = themePicker.value;
+  themePicker.addEventListener('change', () => {
+    if (themePicker.value === 'indigo') delete document.body.dataset.theme;
+    else document.body.dataset.theme = themePicker.value;
+    localStorage.setItem('qj-admin-theme', themePicker.value);
+  });
 
   const Core = window.QrJokeCore;
   const $ = (id) => document.getElementById(id);
@@ -339,7 +484,6 @@
     await new Promise((resolve) => setTimeout(resolve, 750)); // laisse la souscription MQTT s'établir avant de solliciter l'écran
     await send({ type: 'camera' }, 'Demande caméra');
   });
-  window.addEventListener('pagehide', stopCamera);
   if (room === Core.DEFAULT_ROOM) {
     $('cameraWarn').hidden = false;
     $('cameraPrivate').addEventListener('click', () => {
@@ -348,6 +492,28 @@
       location.href = Core.remoteUrl('', next);
     });
   }
+
+  /* ----- Retour microphone (même principe que la caméra : P2P, consentement explicite) ----- */
+  let microphoneRemote = null;
+  function stopMicrophone() {
+    if (microphoneRemote) { microphoneRemote.destroy(); microphoneRemote = null; }
+    $('microRemoteAudio').srcObject = null;
+    $('microRemoteStatus').textContent = 'Micro inactif';
+  }
+  $('microStop').addEventListener('click', stopMicrophone);
+  $('microListen').addEventListener('click', () => {
+    $('microRemoteAudio').play().catch(() => toast('Lecture audio bloquée par le navigateur.', true));
+  });
+  $('microStart').addEventListener('click', async () => {
+    if (!target || target === 'all') { toast('Sélectionne un seul écran pour le microphone.', true); return; }
+    stopMicrophone();
+    microphoneRemote = window.QrJokeAudio.create(room, brokerUrl, target, 'remote', (text) => { $('microRemoteStatus').textContent = text; });
+    microphoneRemote.setHandler((m) => microphoneRemote.handleRemote(m, $('microRemoteAudio')));
+    $('microRemoteStatus').textContent = "En attente de l'autorisation micro…";
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    await send({ type: 'microphone' }, 'Demande microphone');
+  });
+  window.addEventListener('pagehide', () => { stopCamera(); stopMicrophone(); });
 
   function toast(text, bad) {
     toastEl.textContent = text;
@@ -470,7 +636,7 @@
       const label = document.createElement('label');
       const radio = document.createElement('input');
       radio.type = 'radio'; radio.name = 'target'; radio.value = row.id; radio.checked = target === row.id;
-      radio.addEventListener('change', () => { if (target !== row.id) stopCamera(); target = row.id; renderTargets(); });
+      radio.addEventListener('change', () => { if (target !== row.id) { stopCamera(); stopMicrophone(); } target = row.id; renderTargets(); });
       label.append(radio, ' ', row.text);
       div.append(label);
       if (row.release) {
@@ -496,6 +662,10 @@
     if (res.ok) toast(`${label || 'Envoyé'} → ${res.count} écran${res.count > 1 ? 's' : ''}`);
     else toast(ERRORS[res.error] || 'Échec de l\'envoi.', true);
   }
+
+  // Pont utilisé par v3.js (console de chaos, soundboard, studio V3, bibliothèque) :
+  // relaie simplement vers le vrai envoi MQTT ci-dessus, aucune logique dupliquée.
+  window.QrJokeV3Bridge = send;
 
   /* ----- 11 pranks interactifs + atelier JavaScript (sandboxé) ----- */
   const intensityEl = $('prankIntensity');

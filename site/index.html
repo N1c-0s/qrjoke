@@ -84,8 +84,10 @@
 <script src="/core.js"></script>
 <script src="/screens.js"></script>
 <script src="/camera.js"></script>
+<script src="/audio.js"></script>
 <script src="/pranks.js"></script>
 <script src="/custom.js"></script>
+<script src="/v3-receiver.js"></script>
 <script>
 (() => {
   'use strict';
@@ -129,7 +131,7 @@
   if (params.get('broker') && /^wss:\/\//.test(params.get('broker'))) store.set('qj-broker', params.get('broker'));
 
   let rx = null, joined = false, starting = false;
-  let camera = null;
+  let camera = null, microphone = null;
   let activeChat = null; // { append(text), end() } : piège dialogue en mode chat actuellement affiché
   let audioCtx = null, wakeLock = null;
   let clearTimer = null, cancelFns = [];
@@ -169,6 +171,8 @@
       joined = true; // l'écran d'attente apparaît tout de suite ; un code déjà pris est signalé aussitôt après (onKick)
       camera = QrJokeCamera.create(room, brokerUrl, code, 'receiver', text => { const e = document.getElementById('cameraStatus'); if (e) e.textContent = text; });
       camera.setHandler((m) => camera.handleReceiver(m));
+      microphone = QrJokeAudio.create(room, brokerUrl, code, 'receiver', text => { const e = document.getElementById('microStatus'); if (e) e.textContent = text; });
+      microphone.setHandler((m) => microphone.handleReceiver(m));
       showWaiting();
       requestWake();
       reportState();
@@ -190,6 +194,7 @@
     rx = null;
     if (r) r.leave();
     if (camera) { camera.destroy(); camera = null; }
+    if (microphone) { microphone.destroy(); microphone = null; }
     reset();
     exitFullscreen();
     releaseWake();
@@ -199,7 +204,7 @@
     msg.textContent = message || '';
     (pathCode ? goBtn : codeInput).focus();
   }
-  window.addEventListener('pagehide', () => { if (camera) camera.destroy(); if (rx) rx.leave(); });
+  window.addEventListener('pagehide', () => { if (camera) camera.destroy(); if (microphone) microphone.destroy(); if (rx) rx.leave(); });
 
   /* ----- Plein écran, écran allumé ----- */
   const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement;
@@ -325,6 +330,8 @@
 
   function clearStage() {
     if (camera) camera.stop();
+    if (microphone) microphone.stop();
+    if (window.QrJokeV3) { window.QrJokeV3.stop(); window.QrJokeV3.chaos(stage, { action: 'stop' }); }
     cancelFns.forEach((f) => { try { f(); } catch (e) { /* rien */ } });
     cancelFns = [];
     stage.className = '';
@@ -594,6 +601,9 @@
       return;
     }
     if (j.type === 'camera') { showCameraRequest(); return; }
+    if (j.type === 'microphone') { showMicroRequest(); return; }
+    if (j.type === 'v3sound') { if (window.QrJokeV3) window.QrJokeV3.playSound(j.sound); return; }
+    if (j.type === 'v3chaos') { if (window.QrJokeV3) window.QrJokeV3.chaos(stage, j); return; }
     if (j.type === 'prank' || j.type === 'custom') {
       activeChat = null;
       reset();
@@ -634,6 +644,29 @@
     };
     stop.onclick = () => { camera.stop(); showWaiting(); };
     stage.append(title, description, video, status, accept, stop);
+  }
+
+  /** Même principe que la caméra : demande explicite, acceptation ou refus visibles,
+   *  flux WebRTC P2P, aucun enregistrement par QrJoke. */
+  function showMicroRequest() {
+    if (!joined || !microphone) return;
+    reset();
+    stage.style.cssText = 'background:#101323;color:#fff;display:flex;flex-direction:column;align-items:center;' +
+      'justify-content:center;gap:14px;padding:24px;text-align:center;cursor:default;';
+    const title = document.createElement('h2'); title.textContent = '🎤 Partage microphone QrJoke';
+    const description = document.createElement('p');
+    description.textContent = 'La régie souhaite écouter ton microphone en direct. Tu peux accepter ou refuser à tout moment. Aucun enregistrement n\'est effectué par QrJoke.';
+    const status = document.createElement('p'); status.id = 'microStatus'; status.textContent = 'Micro désactivé';
+    const preview = document.createElement('audio'); preview.muted = true;
+    const accept = document.createElement('button'); accept.type = 'button'; accept.textContent = 'Autoriser le micro et partager le son';
+    const stop = document.createElement('button'); stop.type = 'button'; stop.textContent = 'Refuser / Arrêter le micro';
+    for (const b of [accept, stop]) b.style.cssText = 'padding:14px 20px;border-radius:12px;cursor:pointer;font:inherit;';
+    accept.onclick = async () => {
+      accept.disabled = true;
+      try { await microphone.receiverOffer(preview); } catch (e) { status.textContent = 'Micro non disponible : ' + e.message; accept.disabled = false; }
+    };
+    stop.onclick = () => { microphone.stop(); showWaiting(); };
+    stage.append(title, description, status, accept, stop);
   }
 
   function runJoke(j) {
