@@ -183,5 +183,84 @@
       "size": 3,
       "duration": 8
     }
+  },
+  {
+    "id": "build",
+    "label": "Build cassé",
+    "emoji": "🛠️",
+    "joke": {
+      "type": "loading",
+      "text": "Build en cours…",
+      "steps": [
+        "Compilation…",
+        "Lint…",
+        "Tests unitaires…",
+        "Packaging…"
+      ],
+      "seconds": 10,
+      "bg": "#0d1117",
+      "fg": "#58a6ff",
+      "final": ""
+    }
+  },
+  {
+    "id": "proddown",
+    "label": "Prod is down",
+    "emoji": "🔥",
+    "joke": {
+      "type": "countdown",
+      "from": 5,
+      "text": "🔥 PRODUCTION IS DOWN 🔥",
+      "bg": "#1a0000",
+      "fg": "#ff4d4d",
+      "size": 7,
+      "final": ""
+    }
+  },
+  {
+    "id": "merge",
+    "label": "Merge conflict",
+    "emoji": "🧩",
+    "joke": {
+      "type": "typewriter",
+      "text": "<<<<<<< HEAD\nce que tu as fait\n=======\nce que j'ai fait\n>>>>>>> main",
+      "bg": "#0d1117",
+      "fg": "#f0883e",
+      "size": 4,
+      "speed": 25,
+      "final": ""
+    }
+  },
+  {
+    "id": "panic",
+    "label": "Kernel panic",
+    "emoji": "💀",
+    "joke": {
+      "type": "text",
+      "text": "KERNEL PANIC\n\nnot syncing: Fatal exception",
+      "bg": "#000000",
+      "fg": "#ff3333",
+      "size": 6,
+      "final": ""
+    }
+  },
+  {
+    "id": "npm",
+    "label": "npm install éternel",
+    "emoji": "📦",
+    "joke": {
+      "type": "loading",
+      "text": "npm install",
+      "steps": [
+        "Resolving dependencies…",
+        "Fetching packages…",
+        "node_modules : 1,2 Go…",
+        "Toujours en cours…"
+      ],
+      "seconds": 14,
+      "bg": "#0d1117",
+      "fg": "#ff6b6b",
+      "final": ""
+    }
   }
 ]
