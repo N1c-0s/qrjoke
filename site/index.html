@@ -359,7 +359,7 @@
     if (caption) stage.append(big(caption, j.size || 6));
   }
 
-  const DEFER_FX = new Set(['countdown', 'loading', 'runaway', 'oserror']); // le son part au moment de la révélation
+  const DEFER_FX = new Set(['countdown', 'loading', 'runaway', 'oserror', 'trap']); // le son part au moment de la révélation
 
   const HANDLERS = {
     text: (j) => body(j, j.text),
@@ -460,6 +460,21 @@
     confetti: (j) => {
       body(j, j.text || '🎉');
       confetti((j.seconds || 5) * 1000);
+    },
+
+    trap: (j) => {
+      stage.style.cursor = 'default';
+      const os = Core.resolveOS(j.os, detectedOS);
+      window.QrJokeScreens.renderTrap(j.trap, os, {
+        stage, text: j.text, button: j.button, button2: j.button2,
+        cancel: (f) => cancelFns.push(f),
+        done: () => {
+          clearStage();
+          fx(j);
+          body(j, j.final || 'Blague ! 😄');
+          if (j.confetti) confetti(3000);
+        },
+      });
     },
 
     oserror: (j) => {

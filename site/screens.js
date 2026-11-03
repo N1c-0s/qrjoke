@@ -251,6 +251,106 @@
     cancel(() => { clearTimeout(autoTimer); clearTimeout(endTimer); });
   };
 
+  /* ---------- Pièges de bouton (OK impossible à cliquer, par OS) ---------- */
+
+  /** Style de bouton par OS : { primary(label), secondary(label) } -> éléments posés dans le conteneur. */
+  const BUTTON_STYLE = {
+    windows: (doc, label, primary) => {
+      const b = doc.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.style.cssText = `font:15px "Segoe UI",sans-serif;padding:7px 22px;border-radius:3px;cursor:pointer;` +
+        (primary ? 'background:#0078d4;color:#fff;border:1px solid #0078d4;' : 'background:#e1e1e1;color:#1a1a1a;border:1px solid #adadad;');
+      return b;
+    },
+    mac: (doc, label, primary) => {
+      const b = doc.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.style.cssText = `font:15px -apple-system,sans-serif;padding:8px 22px;border-radius:999px;cursor:pointer;border:0;` +
+        (primary ? 'background:#0a84ff;color:#fff;' : 'background:#3a3a3c;color:#fff;');
+      return b;
+    },
+    android: (doc, label, primary) => {
+      const b = doc.createElement('button');
+      b.type = 'button'; b.textContent = label.toUpperCase();
+      b.style.cssText = `font:14px Roboto,sans-serif;font-weight:600;letter-spacing:.03em;padding:9px 14px;` +
+        `border-radius:6px;cursor:pointer;border:0;background:transparent;` + (primary ? 'color:#8ab4f8;' : 'color:#ccc;');
+      return b;
+    },
+    iphone: (doc, label, primary) => {
+      const b = doc.createElement('button');
+      b.type = 'button'; b.textContent = label;
+      b.style.cssText = `font:17px -apple-system,sans-serif;padding:11px 0;width:100%;cursor:pointer;` +
+        `border:0;border-top:1px solid rgba(255,255,255,.25);background:transparent;` +
+        (primary ? 'color:#0a84ff;font-weight:600;' : 'color:#0a84ff;');
+      return b;
+    },
+  };
+
+  /** Dessine le piège demandé (shrink, swap, fakeclick) stylé selon l'OS, dans ctx.stage. */
+  function renderTrap(kind, os, ctx) {
+    const c = setup(ctx);
+    const name = Object.prototype.hasOwnProperty.call(BUTTON_STYLE, os) ? os : 'windows';
+    const mk = BUTTON_STYLE[name];
+    const stacked = name === 'iphone'; // iOS empile ses boutons plutôt que côte à côte
+
+    const title = c.el('div', 'font:600 4vmin system-ui,sans-serif;margin-bottom:3vmin;max-width:80vw;text-align:center;');
+    title.textContent = ctx.text || 'Continuer ?';
+    const box = c.el('div', stacked
+      ? 'display:flex;flex-direction:column;width:min(80vw,320px);'
+      : 'display:flex;gap:2vmin;align-items:center;');
+    c.stage.append(title, box);
+
+    const okLabel = ctx.button || 'OK';
+    const cancelLabel = ctx.button2 || 'Annuler';
+
+    if (kind === 'swap') {
+      const ok = mk(c.doc, okLabel, true), cancelBtn = mk(c.doc, cancelLabel, false);
+      // Ordre habituel (Annuler puis OK) ; les deux boutons échangent de place à chaque survol.
+      box.append(cancelBtn, ok);
+      let swapped = false;
+      const flip = () => { swapped = !swapped; box.replaceChildren(swapped ? ok : cancelBtn, swapped ? cancelBtn : ok); };
+      ok.addEventListener('pointerenter', flip);
+      cancelBtn.addEventListener('pointerenter', flip);
+      ok.addEventListener('click', c.finish);
+      cancelBtn.addEventListener('click', c.finish);
+      c.cancel(() => {});
+      return;
+    }
+
+    if (kind === 'shrink') {
+      const ok = mk(c.doc, okLabel, true);
+      box.append(ok);
+      let scale = 1, tries = 0;
+      ok.style.transition = 'transform .18s ease-out';
+      ok.addEventListener('pointerenter', () => {
+        if (tries >= 7) return; // au bout d'un moment, le bouton redevient cliquable
+        tries += 1;
+        scale = Math.max(0.28, scale - 0.11);
+        ok.style.transform = `scale(${scale.toFixed(2)})`;
+      });
+      ok.addEventListener('click', () => {
+        if (tries < 7) return; // encore trop petit pour un clic fiable : on ignore
+        c.finish();
+      });
+      c.cancel(() => {});
+      return;
+    }
+
+    // fakeclick : le bouton réagit (s'enfonce) mais ne valide rien les premières fois
+    const PHRASES = ['Presque…', 'Toujours pas ?', 'Encore un petit effort…', 'Bon, d\'accord.'];
+    const ok = mk(c.doc, okLabel, true);
+    box.append(ok);
+    let tries = 0;
+    ok.addEventListener('click', () => {
+      tries += 1;
+      ok.style.transform = 'scale(.94)';
+      setTimeout(() => { ok.style.transform = ''; }, 90);
+      if (tries < 4) { title.textContent = PHRASES[Math.min(tries - 1, PHRASES.length - 1)]; return; }
+      c.finish();
+    });
+    c.cancel(() => {});
+  }
+
   /** Dessine l'écran demandé (Windows par défaut) et renvoie le nom réellement utilisé. */
   function render(os, ctx) {
     const name = Object.prototype.hasOwnProperty.call(screens, os) ? os : 'windows';
@@ -258,5 +358,5 @@
     return name;
   }
 
-  return { OS_LIST, render };
+  return { OS_LIST, render, renderTrap };
 });

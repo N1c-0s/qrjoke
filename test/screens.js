@@ -232,6 +232,33 @@ async function main() {
     assert(document.getElementById('code').value === '07');
   }
 
+  // Pièges de bouton : chaque piège se termine par la révélation, stylé selon l'OS détecté
+  {
+    const { stage } = await runReceiver('windows', { type: 'trap', trap: 'shrink', text: 'Continuer ?', final: 'Gagné !' });
+    await until(() => stage.textContent.includes('Continuer ?'), 3000, 'piège shrink affiché');
+    const btn = stage.querySelector('button');
+    assert(btn, 'bouton du piège absent');
+    for (let i = 0; i < 7; i += 1) btn.dispatchEvent(new (stage.ownerDocument.defaultView).Event('pointerenter'));
+    btn.dispatchEvent(new (stage.ownerDocument.defaultView).Event('click'));
+    await until(() => stage.textContent.includes('Gagné !'), 3000, 'piège shrink : révélation après 7 fuites');
+  }
+  {
+    const { stage } = await runReceiver('mac', { type: 'trap', trap: 'swap', text: 'Continuer ?', button: 'OK', button2: 'Annuler', final: 'Gagné !' });
+    await until(() => stage.textContent.includes('OK'), 3000, 'piège swap affiché');
+    const [a, b] = stage.querySelectorAll('button');
+    a.dispatchEvent(new (stage.ownerDocument.defaultView).Event('click'));
+    await until(() => stage.textContent.includes('Gagné !'), 3000, 'piège swap : un des deux boutons termine');
+  }
+  {
+    const { stage } = await runReceiver('android', { type: 'trap', trap: 'fakeclick', text: 'Continuer ?', final: 'Gagné !' });
+    const btn = stage.querySelector('button');
+    for (let i = 0; i < 3; i += 1) btn.dispatchEvent(new (stage.ownerDocument.defaultView).Event('click'));
+    await wait(50);
+    assert(!stage.textContent.includes('Gagné !'), 'les 3 premiers clics ne doivent pas valider');
+    btn.dispatchEvent(new (stage.ownerDocument.defaultView).Event('click'));
+    await until(() => stage.textContent.includes('Gagné !'), 3000, 'piège fakeclick : le 4e clic valide');
+  }
+
   // Après un écran d'erreur, "clear" puis une blague normale : plus aucun style de l'écran d'erreur ne reste
   {
     const { dom, stage, handlers, code } = await runReceiver('windows', { type: 'oserror', os: 'windows', seconds: 30 });

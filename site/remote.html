@@ -118,6 +118,33 @@
   </section>
 
   <section>
+    <h2>Pièges de bouton</h2>
+    <div class="row">
+      <select id="trapKind" aria-label="Piège">
+        <option value="shrink">Bouton qui rétrécit</option>
+        <option value="swap">OK / Annuler qui échangent de place</option>
+        <option value="fakeclick">Faux clic (ne compte pas les premières fois)</option>
+      </select>
+      <select id="trapOs" aria-label="Système">
+        <option value="auto">Auto : style de chaque écran</option>
+        <option value="windows">Windows</option>
+        <option value="mac">Mac</option>
+        <option value="android">Android</option>
+        <option value="iphone">iPhone</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="trapText" maxlength="120" placeholder="Question : Continuer ?" aria-label="Question" style="flex:1;min-width:160px">
+      <input id="trapOk" maxlength="40" placeholder="Bouton : OK" aria-label="Bouton principal" style="width:120px">
+      <input id="trapCancel" maxlength="40" placeholder="Bouton : Annuler" aria-label="Bouton secondaire" style="width:120px">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="trapFinal" maxlength="120" placeholder="Message de fin : Blague ! 😄" aria-label="Message de fin" style="flex:1;min-width:200px">
+      <button id="trapGo" class="primary" type="button">Lancer</button>
+    </div>
+  </section>
+
+  <section>
     <h2>Texte libre</h2>
     <form id="free">
       <textarea id="ftext" placeholder="Écris ton message…"></textarea>
@@ -443,6 +470,18 @@
       final: $('osFinal').value.trim() || undefined,
       duration: seconds + 20, // retour automatique à l'écran d'attente après la révélation
     }, 'Erreur système');
+  });
+
+  $('trapGo').addEventListener('click', () => {
+    send({
+      type: 'trap',
+      trap: $('trapKind').value,
+      os: $('trapOs').value,
+      text: $('trapText').value.trim() || undefined,
+      button: $('trapOk').value.trim() || undefined,
+      button2: $('trapCancel').value.trim() || undefined,
+      final: $('trapFinal').value.trim() || undefined,
+    }, 'Piège');
   });
 
   $('clear').addEventListener('click', () => send({ type: 'clear' }, 'Écran d\'attente'));

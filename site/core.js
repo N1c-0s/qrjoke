@@ -58,9 +58,10 @@
 
   const JOKE_TYPES = new Set([
     'text', 'typewriter', 'countdown', 'loading', 'runaway',
-    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'clear',
+    'shake', 'flip', 'confetti', 'blackout', 'oserror', 'image', 'trap', 'clear',
   ]);
   const OS_CHOICES = new Set(['auto', 'windows', 'mac', 'android', 'iphone']);
+  const TRAP_KINDS = new Set(['shrink', 'swap', 'fakeclick']);
   const SOUNDS = new Set(['horn', 'sad', 'ding', 'boing']);
   const str = (v, max) => (typeof v === 'string' ? v.slice(0, max) : undefined);
   const num = (v, min, max) => {
@@ -81,6 +82,7 @@
       text: str(j.text, 500),
       final: str(j.final, 300),
       button: str(j.button, 40),
+      button2: str(j.button2, 40),
       emoji: str(j.emoji, 8),
       bg: color(j.bg),
       fg: color(j.fg),
@@ -90,6 +92,7 @@
       speed: num(j.speed, 10, 500),
       duration: num(j.duration, 0, 3600),
       os: OS_CHOICES.has(j.os) ? j.os : undefined,
+      trap: TRAP_KINDS.has(j.trap) ? j.trap : undefined,
       image: image(j.image),
       sound: SOUNDS.has(j.sound) ? j.sound : undefined,
       vibrate: j.vibrate === true ? true : undefined,
