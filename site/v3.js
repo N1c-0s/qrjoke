@@ -203,10 +203,13 @@
     $('v3tagUrl').textContent = url;
     const img = $('v3tagQr');
     try {
-      const holder = document.createElement('div');
-      new window.QRCode(holder, { text: url, width: 160, height: 160 });
-      const rendered = holder.querySelector('canvas, img');
-      if (rendered) img.src = rendered.tagName === 'CANVAS' ? rendered.toDataURL() : rendered.src;
+      // La lib vendor/qrcode.min.js expose une API fonctionnelle (toDataURL),
+      // pas un constructeur `new QRCode(...)` (c'était une autre lib, davidshimjs/qrcodejs).
+      window.QRCode.toDataURL(url, { width: 160, margin: 1 }, (err, dataUrl) => {
+        if (err) { img.alt = 'QR indisponible : ' + err.message; return; }
+        img.src = dataUrl;
+        img.alt = 'QR code du tag';
+      });
     } catch (e) {
       img.alt = 'QR indisponible : ' + e.message;
     }
